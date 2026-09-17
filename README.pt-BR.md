@@ -49,11 +49,32 @@ Mais três resultados do mesmo conjunto de dados:
   modelo "data-driven" é dividir por n — e é comprovadamente indiferente à ordem dos toques que ele
   é vendido como entendendo.
 
+## E o teste que produziu as colunas da direita nunca foi dimensionado
+
+O holdout acima resolveu três canais de cinco. Cada parte disso era calculável antes de desligar uma
+única região — inclusive a parte que ninguém calcula:
+
+- **O lift mínimo detectável é idêntico para os cinco canais, e o *retorno* mínimo detectável difere
+  por um fator de nove.** Mesmo teste, mesmas semanas: resolve retornos até 0,47 no maior canal e não
+  consegue estabelecer nada abaixo de **4,25** no menor. O retorno real do email, 5,76, volta como
+  "algo entre 2,8 e 8,8".
+- **Um resultado nulo num canal pequeno compra um limite superior e nada mais.** O holdout de
+  retargeting descartou retornos acima de 1,4085 — um fato real, treze semanas dele — e o desenho não
+  conseguiria estabelecer nenhum retorno abaixo de 1,4166. Esses dois números têm o mesmo tamanho por
+  construção.
+- **O holdout não custa nada nos canais que não fazem nada** e abdica de 27,64% das conversões das
+  regiões em holdout no canal que mais importa manter.
+- **Metade do desenho é grátis, e é a metade que ninguém estende.** Um pré-período mais longo não
+  coloca ninguém em holdout e entra no erro-padrão exatamente como o pós-período. Um pré-período
+  ilimitado vale *exatamente* o mesmo que dobrar o número de regiões — 0,000582 nos dois casos,
+  igual e não próximo, porque os dois cortam a mesma variância pela metade.
+
 ## Módulos
 
 | Módulo | O que decide |
 | --- | --- |
 | [`mktlab.attribution`](src/mktlab/attribution/README.md) | Quem leva o crédito sob seis modelos, o que um holdout geográfico diz em vez disso, e a diferença entre o ROAS e sua versão incremental. |
+| [`mktlab.design`](src/mktlab/design/README.md) | Se o teste vale ser rodado: a precisão que ele terá, o menor **retorno** que consegue estabelecer, quanto custa se o canal funcionar, e o que um resultado nulo já descartou. |
 
 Todo README de módulo é bilíngue e traz uma seção **Premissas e limitações**, porque uma cifra sem
 suas premissas não é um resultado.
@@ -63,6 +84,7 @@ suas premissas não é um resultado.
 | Exemplo | O que mostra |
 | --- | --- |
 | [`examples/01_who_gets_the_credit.py`](examples/01_who_gets_the_credit.py) | Seis modelos de atribuição sobre uma mesma base de jornadas, a identidade de Shapley, as conversões que ninguém tocou, e o holdout que derruba os seis. |
+| [`examples/02_the_test_nobody_sized.py`](examples/02_the_test_nobody_sized.py) | O mesmo holdout, precificado antes de rodar: sua precisão, quais canais ele sempre iria resolver, o retorno que ele nunca conseguiria estabelecer, e quanto custou. |
 
 ## Instalar e rodar
 
@@ -71,12 +93,13 @@ python -m pip install -e ".[dev]"
 make check       # lint, tipos e a suíte rápida - o que libera um push
 make check-all   # o acima mais toda cifra documentada re-derivada
 python examples/01_who_gets_the_credit.py
+python examples/02_the_test_nobody_sized.py
 ```
 
 ## Como as afirmações são mantidas honestas
 
-**100 testes, 100% de cobertura de linhas e de ramos.** 85 deles rodam em segundos e liberam cada
-push. Os 15 restantes re-derivam, a partir do gerador, toda cifra citada em todo README deste
+**167 testes, 100% de cobertura de linhas e de ramos.** 140 deles rodam em segundos e liberam cada
+push. Os 27 restantes re-derivam, a partir do gerador, toda cifra citada em todo README deste
 repositório, e rodam todo script de exemplo. Uma mudança que mova um número publicado quebra o build
 em vez de deixar o texto silenciosamente errado.
 
@@ -87,13 +110,15 @@ Três disciplinas, cada uma adotada depois de ter pegado algo:
    frações exatas; o estimador geográfico contra um painel sem ruído cuja diferença em diferenças é
    exatamente +0,04, com uma tendência comum e uma diferença permanente entre regiões adicionadas
    para confirmar que nenhuma das duas chega à estimativa; as taxas médias do gerador contra a
-   expectativa analítica para a qual elas fecham.
+   expectativa analítica para a qual elas fecham; a função de poder contra seu próprio caso de
+   controle, em que um lift exatamente zero tem de devolver alfa com doze casas decimais; e o
+   erro-padrão previsto contra os cinco painéis efetivamente simulados.
 2. **Cifras são asseridas, não citadas.** Inclusive as que o repositório faz sobre si mesmo: a
    contagem de testes acima, a tabela de módulos correspondendo ao pacote, as duas edições de idioma
    existindo, e todo exemplo estando linkado de algum lugar.
-3. **Conectar os módulos encontra defeitos que escrever mais módulos não encontra.** Dois dos três
-   defeitos desta onda foram achados escrevendo o exemplo e os casos de controle, não lendo o
-   código. Eles estão registrados na documentação do módulo em vez de corrigidos em silêncio — a
+3. **Conectar os módulos encontra defeitos que escrever mais módulos não encontra.** Cinco dos seis
+   defeitos registrados até aqui foram achados escrevendo um exemplo ou um caso de controle, não
+   lendo código. Eles estão registrados na documentação do módulo em vez de corrigidos em silêncio — a
    função de retorno um dia multiplicou a *participação* de um canal pelo total de conversões, o que
    espalha as conversões sem toque entre os canais e é precisamente o erro que o módulo existe para
    denunciar.

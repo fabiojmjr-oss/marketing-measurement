@@ -40,6 +40,44 @@ the point.
    closed form with the limit taken explicitly, and checked against scipy everywhere scipy is
    defined. Found because the noiseless panel is the first control case the geo tests use.
 
+## Wave 2 — the test nobody sized *(complete)*
+
+Wave 1 ran a holdout and read it. This wave asks what it was capable of finding, in advance, and
+what its null results already established.
+
+| Delivered | Where |
+| --- | --- |
+| The predicted standard error of a geo holdout, in closed form, before any data exists | `design.GeoDesign.standard_error` |
+| Power from the noncentral t, with a lift of exactly zero returning alpha as a control case | `design.GeoDesign.power` |
+| Minimum detectable lift, nudged up so the achieved power is never below the target | `design.GeoDesign.detectable_lift` |
+| Minimum detectable **return**, and the width of the interval the test will produce | `detectable_iroas`, `return_precision` |
+| Regions needed for a given lift, and the named refusal when regions are the wrong lever | `design.regions_for` |
+| What the holdout costs if the channel works, including a population-free share | `design.holdout_cost` |
+| The trade as one table, and the free precision of a longer pre-period | `design.sizing_table` |
+| A null result read as a bound on the return, next to what the design could reach | `design.retrospective` |
+
+**The thread from wave 1 continues, one level up.** Wave 1 showed that the figure a report shows is
+a correct calculation of the wrong quantity. Wave 2 shows that the *test* meant to fix that is also
+sized against the wrong quantity: everybody computes the minimum detectable lift, which is the same
+for every channel in the account, and nobody computes the minimum detectable return, which differs
+between them by a factor of nine and is the only one a budget can act on.
+
+### Defects found and recorded
+
+1. **A detectable lift printed under an "80% power" heading whose power was 0.799992.** The root
+   finder lands within its tolerance, which can be a hair below the target. The lift is now nudged
+   up until the achieved power is at or above what was asked for, the way a sample size is rounded
+   up rather than to the nearest integer. Found by reading the example's own output table.
+2. **A guard covering three cases that cannot happen.** The non-finite tail guard was written
+   symmetrically, for both tails and both signs, when scipy fails on exactly one of the four. It is
+   now narrowed to that case, and which case it is has become an assertion about scipy rather than
+   an assumption inside the module. Found by a coverage report showing a branch no test could reach.
+3. **A prose claim that did not follow from the numbers.** A draft of the module README said no
+   design in its table could establish email's return as distinct from 3.00. Eighty regions can,
+   which is why `return_precision` now exists: the claim needed the half-width of the interval, not
+   the minimum detectable effect, and computing the right quantity was the fix. Found by checking a
+   sentence I had already written.
+
 ## What is deliberately not here
 
 - **No market statistics, industry benchmarks or third-party figures.** Every number in this
@@ -55,11 +93,12 @@ the point.
 
 ## Still open
 
-- **Sizing the test before running it.** The holdout in wave 1 resolved three effects out of five.
-  Which of those two failures was the design's fault is answerable in advance, and a test run
-  without that answer is a thirteen-week bet nobody priced.
 - **Peeking.** A test declared on the first favourable day, and the error rate that costs, against
-  a sequential rule that keeps it.
+  a sequential rule that keeps it. Every figure in wave 2 assumes the test is read once, at the end.
+- **Estimating the spread from the account's own history rather than assuming it.** Wave 2's closed
+  form is a floor on the noise, because real regions carry autocorrelation and region-specific
+  seasonality. The distance between that floor and a spread measured from the pre-period is itself
+  the interesting number, and it is how a sizing stops being optimistic.
 - **Media mix modelling and collinearity.** Channels whose spend moves together, and what a model
   reports about a coefficient it cannot identify.
 - **Lifetime value and survivorship.** Cohorts measured on the customers who are still there.

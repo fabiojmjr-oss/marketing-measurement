@@ -22,7 +22,13 @@ from mktlab.attribution import (
     shapley,
     unattributable,
 )
-from mktlab.synth import AUDIENCE, CHANNELS, GEO, Dataset
+from mktlab.design import (
+    GeoDesign,
+    holdout_cost,
+    regions_for,
+    retrospective,
+)
+from mktlab.synth import AUDIENCE, CHANNELS, GEO, Dataset, mean_rate, true_rate_lift
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -262,3 +268,212 @@ def test_the_example_runs(script: str) -> None:
         cwd=ROOT,
     )
     assert result.returncode == 0, result.stderr
+
+
+# --- Wave 2: the sizing figures, from src/mktlab/design/README.md -----------------------------
+
+
+def _published_design() -> GeoDesign:
+    return GeoDesign(
+        geos=GEO.geos,
+        weeks=GEO.weeks,
+        split=GEO.split,
+        users_per_geo_week=GEO.users_per_geo_week,
+        base_rate=mean_rate(AUDIENCE, tuple(CHANNELS)),
+    )
+
+
+def test_the_design_readme_quotes_the_right_base_rate_and_precision() -> None:
+    design = _published_design()
+    assert design.base_rate == pytest.approx(0.0977)
+    assert design.df == 38.0
+    assert design.standard_error() == pytest.approx(0.000823, abs=5e-7)
+    assert design.power(0.0) == pytest.approx(0.05, abs=1e-12)
+
+
+def test_the_detectable_lifts_are_what_the_design_readme_publishes() -> None:
+    design = _published_design()
+    assert design.detectable_lift() == pytest.approx(0.002361, abs=5e-7)
+    assert design.detectable_lift(0.50) == pytest.approx(0.001653, abs=5e-7)
+    assert design.detectable_lift(0.95) == pytest.approx(0.003036, abs=5e-7)
+
+
+def test_the_predicted_against_observed_table_is_what_is_published(full: Dataset) -> None:
+    design = _published_design()
+    published = {
+        "social-pago": (0.000797, 0.000786, 0.9868, 1.0000),
+        "email": (0.000820, 0.001106, 1.3476, 0.9671),
+        "busca-generica": (0.000816, 0.000745, 0.9125, 1.0000),
+        "retargeting": (0.000823, 0.000849, 1.0307, 0.0500),
+        "busca-marca": (0.000823, 0.000857, 1.0407, 0.0500),
+    }
+    for profile in CHANNELS:
+        predicted, observed, ratio, power = published[profile.channel]
+        truth = true_rate_lift(profile)
+        panel = full.geo_experiments[full.geo_experiments["channel"] == profile.channel]
+        result = geo_lift(panel, split=GEO.split, channel=profile.channel)
+        assert design.standard_error(truth) == pytest.approx(predicted, abs=5e-7), profile.channel
+        assert result.standard_error == pytest.approx(observed, abs=5e-7), profile.channel
+        assert result.standard_error / design.standard_error(truth) == pytest.approx(
+            ratio, abs=5e-5
+        ), profile.channel
+        assert design.power(truth) == pytest.approx(power, abs=5e-5), profile.channel
+
+
+def test_the_regions_each_channel_actually_needed_are_published_correctly() -> None:
+    design = _published_design()
+    published = {"social-pago": 4, "busca-generica": 8, "email": 24}
+    for profile in CHANNELS:
+        truth = true_rate_lift(profile)
+        if truth == 0.0:
+            continue
+        assert regions_for(truth, design) == published[profile.channel], profile.channel
+        assert published[profile.channel] < design.geos
+
+
+def test_the_detectable_return_table_is_what_is_published() -> None:
+    design = _published_design()
+    reach = float(AUDIENCE.users)
+    value = AUDIENCE.value_per_conversion
+    published = {
+        "social-pago": (0.4722, 0.3334, 5.40),
+        "busca-generica": (0.7083, 0.5001, 2.25),
+        "busca-marca": (0.9444, 0.6668, 0.00),
+        "retargeting": (1.4166, 1.0002, 0.00),
+        "email": (4.2498, 3.0007, 5.76),
+    }
+    for profile in CHANNELS:
+        floor, half_width, true_iroas = published[profile.channel]
+        assert design.detectable_iroas(profile.spend, reach, value) == pytest.approx(
+            floor, abs=5e-5
+        ), profile.channel
+        assert design.return_precision(profile.spend, reach, value) == pytest.approx(
+            half_width, abs=5e-5
+        ), profile.channel
+        assert true_rate_lift(profile) * reach * value / profile.spend == pytest.approx(
+            true_iroas, abs=5e-3
+        ), profile.channel
+
+
+def test_the_same_design_is_nine_times_blinder_on_the_smallest_channel() -> None:
+    """The claim the README makes in words: the statistical figure is identical, the decision
+    figure differs by a factor of nine."""
+    design = _published_design()
+    reach = float(AUDIENCE.users)
+    value = AUDIENCE.value_per_conversion
+    floors = {
+        profile.channel: design.detectable_iroas(profile.spend, reach, value)
+        for profile in CHANNELS
+    }
+    assert max(floors.values()) / min(floors.values()) == pytest.approx(9.0)
+    assert max(floors, key=lambda name: floors[name]) == "email"
+    assert min(floors, key=lambda name: floors[name]) == "social-pago"
+
+
+def test_the_two_null_results_are_read_as_bounds_on_the_return(full: Dataset) -> None:
+    design = _published_design()
+    published = {
+        "retargeting": (0.3773, -0.6539, 1.4085, 1.4166),
+        "busca-marca": (-0.2892, -0.9844, 0.4060, 0.9444),
+    }
+    for channel, (iroas, low, high, floor) in published.items():
+        profile = next(item for item in CHANNELS if item.channel == channel)
+        panel = full.geo_experiments[full.geo_experiments["channel"] == channel]
+        read = retrospective(
+            geo_lift(panel, split=GEO.split, channel=channel),
+            design,
+            spend=profile.spend,
+            reach=float(AUDIENCE.users),
+            value_per_conversion=AUDIENCE.value_per_conversion,
+        )
+        assert not read.significant, channel
+        assert read.iroas == pytest.approx(iroas, abs=5e-5), channel
+        assert read.iroas_interval[0] == pytest.approx(low, abs=5e-5), channel
+        assert read.excludes == pytest.approx(high, abs=5e-5), channel
+        assert read.detectable_iroas == pytest.approx(floor, abs=5e-5), channel
+        assert not read.was_big_enough, channel
+
+
+def test_the_holdout_cost_table_is_what_is_published() -> None:
+    design = _published_design()
+    published = {
+        "social-pago": (14_040.0, 0.2764),
+        "busca-generica": (3_900.0, 0.0768),
+        "email": (1_664.0, 0.0328),
+        "retargeting": (0.0, 0.0),
+        "busca-marca": (0.0, 0.0),
+    }
+    for profile in CHANNELS:
+        conversions, share = published[profile.channel]
+        cost = holdout_cost(design, true_rate_lift(profile), AUDIENCE.value_per_conversion)
+        assert cost["region_weeks_held_out"] == 260.0
+        assert cost["users_held_out"] == 520_000.0
+        assert cost["forgone_conversions"] == pytest.approx(conversions, abs=5e-1), profile.channel
+        assert cost["forgone_share"] == pytest.approx(share, abs=5e-5), profile.channel
+
+
+def test_the_free_pre_period_table_is_what_is_published() -> None:
+    design = _published_design()
+    email = next(profile for profile in CHANNELS if profile.channel == "email")
+    published = {
+        4: (0.001200, 6.2004, 4.3742),
+        8: (0.000943, 4.8705, 3.4377),
+        13: (0.000823, 4.2498, 3.0007),
+        26: (0.000713, 3.6789, 2.5987),
+        52: (0.000651, 3.3574, 2.3722),
+    }
+    for before, (error, floor, half_width) in published.items():
+        candidate = GeoDesign(
+            geos=design.geos,
+            weeks=before + design.weeks_after,
+            split=before,
+            users_per_geo_week=design.users_per_geo_week,
+            base_rate=design.base_rate,
+        )
+        reach = float(AUDIENCE.users)
+        value = AUDIENCE.value_per_conversion
+        assert candidate.standard_error() == pytest.approx(error, abs=5e-7), before
+        assert candidate.detectable_iroas(email.spend, reach, value) == pytest.approx(
+            floor, abs=5e-5
+        ), before
+        assert candidate.return_precision(email.spend, reach, value) == pytest.approx(
+            half_width, abs=5e-5
+        ), before
+        # Every row costs the same, which is the whole point of the table.
+        cost = holdout_cost(candidate, true_rate_lift(email), value)
+        assert cost["region_weeks_held_out"] == 260.0
+        assert cost["forgone_conversions"] == pytest.approx(1_664.0)
+
+
+def test_an_unlimited_pre_period_equals_double_the_regions_at_the_published_figure() -> None:
+    """The exact identity the README calls the cleanest statement in the module."""
+    design = _published_design()
+    doubled = GeoDesign(
+        geos=design.geos * 2,
+        weeks=design.weeks,
+        split=design.split,
+        users_per_geo_week=design.users_per_geo_week,
+        base_rate=design.base_rate,
+    )
+    floor = design.standard_error() / 2.0**0.5
+    assert doubled.standard_error() == pytest.approx(floor, rel=1e-12)
+    assert floor == pytest.approx(0.000582, abs=5e-7)
+
+
+def test_email_needs_eighty_regions_to_tell_three_from_eight() -> None:
+    """The claim behind 'the design that ran is the row that cannot answer the question'."""
+    design = _published_design()
+    email = next(profile for profile in CHANNELS if profile.channel == "email")
+    reach = float(AUDIENCE.users)
+    value = AUDIENCE.value_per_conversion
+    truth = true_rate_lift(email) * reach * value / email.spend
+    needed = truth - 3.0
+    assert design.return_precision(email.spend, reach, value) > needed
+    doubled = GeoDesign(
+        geos=80,
+        weeks=design.weeks,
+        split=design.split,
+        users_per_geo_week=design.users_per_geo_week,
+        base_rate=design.base_rate,
+    )
+    assert doubled.return_precision(email.spend, reach, value) < needed

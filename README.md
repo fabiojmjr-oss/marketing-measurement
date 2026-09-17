@@ -50,11 +50,31 @@ Three more results from the same dataset:
   "data-driven" model is divide-by-n, and it is provably indifferent to the order of the touches it
   is sold as understanding.
 
+## And the test that produced the right-hand columns was never sized
+
+The holdout above resolved three channels of five. Every part of that was computable before a single
+region was switched off — including the part nobody computes:
+
+- **The minimum detectable lift is identical for all five channels, and the minimum detectable
+  *return* differs by a factor of nine.** The same test, the same weeks: it resolves returns down to
+  0.47 on the largest channel and can establish nothing below **4.25** on the smallest. Email's true
+  return of 5.76 comes back as "somewhere between 2.8 and 8.8".
+- **A null result on a small channel buys an upper bound and nothing else.** The retargeting holdout
+  ruled out returns above 1.4085 — a real fact, thirteen weeks of it — and the design could not have
+  established any return below 1.4166. Those two numbers are the same size by construction.
+- **The holdout costs nothing on the channels that do nothing**, and gives up 27.64% of the held-out
+  regions' conversions on the channel it matters most to keep.
+- **Half the design is free and it is the half nobody extends.** A longer pre-period holds nobody
+  out and enters the standard error exactly as the post-period does. An unlimited one is worth
+  *exactly* as much as doubling the number of regions — 0.000582 either way, equal rather than
+  close, because both halve the same variance.
+
 ## Modules
 
 | Module | What it decides |
 | --- | --- |
 | [`mktlab.attribution`](src/mktlab/attribution/README.md) | Who gets the credit under six models, what a geo holdout says instead, and the difference between ROAS and its incremental version. |
+| [`mktlab.design`](src/mktlab/design/README.md) | Whether the test is worth running: the precision it will have, the smallest **return** it can establish, what it costs if the channel works, and what a null result already ruled out. |
 
 Every module README is bilingual and carries an **Assumptions and limitations** section, because a
 figure without its assumptions is not a result.
@@ -64,6 +84,7 @@ figure without its assumptions is not a result.
 | Example | What it shows |
 | --- | --- |
 | [`examples/01_who_gets_the_credit.py`](examples/01_who_gets_the_credit.py) | Six attribution models on one set of journeys, the Shapley identity, the conversions nobody touched, and the holdout that overrules all six. |
+| [`examples/02_the_test_nobody_sized.py`](examples/02_the_test_nobody_sized.py) | The same holdout, priced before it ran: its precision, which channels it was always going to resolve, the return it could never have established, and what it cost. |
 
 ## Install and run
 
@@ -72,12 +93,13 @@ python -m pip install -e ".[dev]"
 make check       # lint, types and the fast suite - what gates a push
 make check-all   # the above plus every documented figure re-derived
 python examples/01_who_gets_the_credit.py
+python examples/02_the_test_nobody_sized.py
 ```
 
 ## How the claims are kept honest
 
-**100 tests, 100% statement and branch coverage.** 85 of them run in seconds and gate every push.
-The remaining 15 re-derive, from the generator, every figure quoted in every README on this
+**167 tests, 100% statement and branch coverage.** 140 of them run in seconds and gate every push.
+The remaining 27 re-derive, from the generator, every figure quoted in every README on this
 repository, and run every example script. A change that moves a published number breaks the build
 instead of leaving the text quietly wrong.
 
@@ -87,12 +109,15 @@ Three disciplines, each of which was adopted after it caught something:
    The attribution models are checked against allocations worked out on paper as exact fractions;
    the geo estimator against a noiseless panel whose difference in differences is exactly +0.04,
    with a common trend and a permanent between-region difference added to confirm neither reaches
-   the estimate; the generator's mean rates against the analytic expectation they close to.
+   the estimate; the generator's mean rates against the analytic expectation they close to; the
+   power function against its own control case, where a lift of exactly zero must return alpha to
+   twelve decimal places; and the predicted standard error against the five panels that were
+   actually simulated.
 2. **Figures are asserted, not quoted.** Including the ones about the repository itself: the test
    count above, the module table matching the package, both language editions existing, and every
    example being linked from somewhere.
-3. **Connecting the modules finds defects that writing more modules does not.** Two of this wave's
-   three defects were found by writing the example and the control cases, not by reading the code.
+3. **Connecting the modules finds defects that writing more modules does not.** Five of the six
+   defects recorded so far were found by writing an example or a control case, not by reading code.
    They are recorded in the module documentation rather than quietly fixed — the return function
    once multiplied a channel's *share* by total conversions, which spreads the untouched
    conversions across the channels and is precisely the error the module exists to warn about.
