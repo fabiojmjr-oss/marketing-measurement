@@ -69,12 +69,31 @@ O holdout acima resolveu três canais de cinco. Cada parte disso era calculável
   ilimitado vale *exatamente* o mesmo que dobrar o número de regiões — 0,000582 nos dois casos,
   igual e não próximo, porque os dois cortam a mesma variância pela metade.
 
+## E ninguém lê um teste uma única vez
+
+Esse dimensionamento se apoia numa premissa que nunca declara: que o holdout é lido uma vez, no fim.
+Ele roda treze semanas num painel.
+
+- **Treze olhadas semanais no 1,96 de sempre levam a taxa de falso-positivo a 21,4%, não 5%** — um
+  canal que não faz nada é declarado vencedor cerca de uma vez em cinco. A curva é mais inclinada no
+  começo: olhar *duas* vezes já custa 66% mais erro do que o desenho admite.
+- **A correção honesta custa 2,1% do retorno detectável.** Uma fronteira de O'Brien-Fleming mantém a
+  taxa de erro em exatamente 5% nas treze leituras por 4,3% mais informação — duas regiões extras em
+  vinte e quatro. A versão de Pocock custa oito regiões e compra o direito de parar na semana um.
+- **Sua primeira fronteira é 7,58 erros-padrão**, que é o desenho dizendo que nada observável na
+  semana um deveria encerrar um teste de treze semanas.
+- **E uma fronteira correta corrige apenas a taxa de erro.** A poder igual, ler uma vez superestima um
+  efeito real em 12% — a publicação é condicionada à significância —, O'Brien-Fleming em 27%, Pocock
+  em 48%, e espiar semanalmente em **73%**. Num teste com pouco poder, lido semanalmente, o efeito
+  reportado é **2,64 vezes** a verdade e 3,8% dos resultados que cruzam a linha apontam para o lado
+  errado.
+
 ## Módulos
 
 | Módulo | O que decide |
 | --- | --- |
 | [`mktlab.attribution`](src/mktlab/attribution/README.md) | Quem leva o crédito sob seis modelos, o que um holdout geográfico diz em vez disso, e a diferença entre o ROAS e sua versão incremental. |
-| [`mktlab.design`](src/mktlab/design/README.md) | Se o teste vale ser rodado: a precisão que ele terá, o menor **retorno** que consegue estabelecer, quanto custa se o canal funcionar, e o que um resultado nulo já descartou. |
+| [`mktlab.design`](src/mktlab/design/README.md) | Se o teste vale ser rodado, e se ele está sendo lido do jeito para o qual foi dimensionado. Dois documentos: [dimensionamento](src/mktlab/design/README-sizing.md) — a precisão que ele terá, o menor **retorno** que consegue estabelecer, quanto custa se o canal funcionar, e o que um resultado nulo já descartou; e [leituras repetidas](src/mktlab/design/README-sequential.md) — o que uma olhada semanal faz com a taxa de erro, quanto custam as duas fronteiras honestas, e quanto uma parada antecipada infla o número que você reporta. |
 
 Todo README de módulo é bilíngue e traz uma seção **Premissas e limitações**, porque uma cifra sem
 suas premissas não é um resultado.
@@ -85,6 +104,7 @@ suas premissas não é um resultado.
 | --- | --- |
 | [`examples/01_who_gets_the_credit.py`](examples/01_who_gets_the_credit.py) | Seis modelos de atribuição sobre uma mesma base de jornadas, a identidade de Shapley, as conversões que ninguém tocou, e o holdout que derruba os seis. |
 | [`examples/02_the_test_nobody_sized.py`](examples/02_the_test_nobody_sized.py) | O mesmo holdout, precificado antes de rodar: sua precisão, quais canais ele sempre iria resolver, o retorno que ele nunca conseguiria estabelecer, e quanto custou. |
+| [`examples/03_the_test_read_every_monday.py`](examples/03_the_test_read_every_monday.py) | O mesmo holdout outra vez, lido semanalmente em vez de uma só vez: a taxa de erro que isso custa, as duas fronteiras que corrigem, quanto custam em regiões, e a estimativa lisonjeira que nenhuma das duas corrige. |
 
 ## Instalar e rodar
 
@@ -94,12 +114,13 @@ make check       # lint, tipos e a suíte rápida - o que libera um push
 make check-all   # o acima mais toda cifra documentada re-derivada
 python examples/01_who_gets_the_credit.py
 python examples/02_the_test_nobody_sized.py
+python examples/03_the_test_read_every_monday.py
 ```
 
 ## Como as afirmações são mantidas honestas
 
-**167 testes, 100% de cobertura de linhas e de ramos.** 140 deles rodam em segundos e liberam cada
-push. Os 27 restantes re-derivam, a partir do gerador, toda cifra citada em todo README deste
+**223 testes, 100% de cobertura de linhas e de ramos.** 183 deles rodam em segundos e liberam cada
+push. Os 40 restantes re-derivam, a partir do gerador, toda cifra citada em todo README deste
 repositório, e rodam todo script de exemplo. Uma mudança que mova um número publicado quebra o build
 em vez de deixar o texto silenciosamente errado.
 
@@ -111,14 +132,17 @@ Três disciplinas, cada uma adotada depois de ter pegado algo:
    exatamente +0,04, com uma tendência comum e uma diferença permanente entre regiões adicionadas
    para confirmar que nenhuma das duas chega à estimativa; as taxas médias do gerador contra a
    expectativa analítica para a qual elas fecham; a função de poder contra seu próprio caso de
-   controle, em que um lift exatamente zero tem de devolver alfa com doze casas decimais; e o
-   erro-padrão previsto contra os cinco painéis efetivamente simulados.
+   controle, em que um lift exatamente zero tem de devolver alfa com doze casas decimais; o
+   erro-padrão previsto contra os cinco painéis efetivamente simulados; e a recursão de leituras
+   repetidas contra uma única olhada reduzindo-se ao teste de amostra fixa, contra sua própria
+   convergência com 100, 300 e 600 nós de quadratura, contra as fronteiras clássicas publicadas, e
+   contra uma simulação de quatro milhões de sorteios.
 2. **Cifras são asseridas, não citadas.** Inclusive as que o repositório faz sobre si mesmo: a
    contagem de testes acima, a tabela de módulos correspondendo ao pacote, as duas edições de idioma
    existindo, e todo exemplo estando linkado de algum lugar.
-3. **Conectar os módulos encontra defeitos que escrever mais módulos não encontra.** Cinco dos seis
-   defeitos registrados até aqui foram achados escrevendo um exemplo ou um caso de controle, não
-   lendo código. Eles estão registrados na documentação do módulo em vez de corrigidos em silêncio — a
+3. **Conectar os módulos encontra defeitos que escrever mais módulos não encontra.** Sete dos oito
+   defeitos registrados até aqui foram achados escrevendo um exemplo, um caso de controle ou uma
+   frase — não lendo código. Eles estão registrados na documentação do módulo em vez de corrigidos em silêncio — a
    função de retorno um dia multiplicou a *participação* de um canal pelo total de conversões, o que
    espalha as conversões sem toque entre os canais e é precisamente o erro que o módulo existe para
    denunciar.

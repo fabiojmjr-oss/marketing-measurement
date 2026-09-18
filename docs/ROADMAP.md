@@ -78,6 +78,42 @@ between them by a factor of nine and is the only one a budget can act on.
    the minimum detectable effect, and computing the right quantity was the fix. Found by checking a
    sentence I had already written.
 
+## Wave 3 — the test read every Monday *(complete)*
+
+Wave 2's sizing rests on an assumption it never states: that the test is read once, at the end. This
+wave removes it.
+
+| Delivered | Where |
+| --- | --- |
+| The Armitage-McPherson-Rowe recursion: the exact error rate of a boundary read several times | `sequential.crossing_probability` |
+| The real false-positive rate of a fixed boundary read K times — 21.4% at thirteen weekly looks | `sequential.inflated_alpha` |
+| Pocock's constant boundary and O'Brien and Fleming's declining one, solved to hold alpha exactly | `sequential.pocock`, `sequential.obrien_fleming` |
+| Power, the effect a boundary needs, and the information that costs against reading once | `power`, `ncp_for_power`, `information_inflation` |
+| How long the test runs on average under each rule | `sequential.expected_looks` |
+| The four rules priced side by side, with the invalid one marked invalid | `sequential.peeking_table` |
+| How much an early stop inflates the effect that gets reported | `sequential.exaggeration` |
+
+**The thread, at its third level.** Wave 1: the figure a report shows is a correct calculation of the
+wrong quantity. Wave 2: the test meant to fix that is sized against the wrong quantity. Wave 3: the
+test is not even read the way it was sized — and when the reading is repaired, the *estimate* is still
+flattering, in the same direction as everything else. Nothing here is a mistake anybody made. Each is
+a decision rule nobody knew was in force.
+
+### Defects found and recorded
+
+1. **A column in the example that ran backwards.** "Regions needed to hold the same floor" showed
+   *fewer* regions for the more expensive boundary, because the lift to detect had been inflated
+   instead of the information. Information scales with regions; the effect does not. Found by reading
+   the printed table and noticing the ordering was impossible.
+2. **A control case returning 0.9999975 instead of 1.** The information cost of reading once has to
+   be exactly one, and it was not, because the reference was the textbook ``z + z_power`` while the
+   thing compared to it came out of the recursion. Those two differ by 3.4e-06 — the textbook formula
+   ignores the probability of rejecting in the tail opposite the true effect. The fix was to compute
+   the reference the same way as the thing being compared to it, rather than to round the output.
+3. **A published nominal level off by three orders of magnitude.** A draft of the module README wrote
+   O'Brien-Fleming's first nominal level as 1e-13 where it is 3.5e-14. It changes no argument, which
+   is exactly why it would have survived: the claim tests now assert it.
+
 ## What is deliberately not here
 
 - **No market statistics, industry benchmarks or third-party figures.** Every number in this
@@ -93,12 +129,17 @@ between them by a factor of nine and is the only one a budget can act on.
 
 ## Still open
 
-- **Peeking.** A test declared on the first favourable day, and the error rate that costs, against
-  a sequential rule that keeps it. Every figure in wave 2 assumes the test is read once, at the end.
 - **Estimating the spread from the account's own history rather than assuming it.** Wave 2's closed
   form is a floor on the noise, because real regions carry autocorrelation and region-specific
   seasonality. The distance between that floor and a spread measured from the pre-period is itself
   the interesting number, and it is how a sizing stops being optimistic.
+- **Alpha spending, and futility.** Wave 3's boundaries assume equal information between looks and
+  can only stop a test for succeeding. A Lan-DeMets spending function handles unequal spacing, and a
+  futility boundary is what would actually save the forgone conversions wave 2 priced — a test that
+  cannot win should end early, and nothing here can end it.
+- **A bias-adjusted estimate at the stopping time.** Wave 3 measures the exaggeration and does not
+  repair it, so its honest use is as an argument against stopping early rather than as a correction
+  factor.
 - **Media mix modelling and collinearity.** Channels whose spend moves together, and what a model
   reports about a coefficient it cannot identify.
 - **Lifetime value and survivorship.** Cohorts measured on the customers who are still there.

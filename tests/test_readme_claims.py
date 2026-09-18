@@ -11,7 +11,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+import numpy as np
 import pytest
+from scipy import stats
 
 from mktlab.attribution import (
     credit,
@@ -23,8 +25,21 @@ from mktlab.attribution import (
     unattributable,
 )
 from mktlab.design import (
+    DEFAULT_POWER,
+    RULES,
     GeoDesign,
+    crossing_probability,
+    exaggeration,
+    fixed_boundary,
     holdout_cost,
+    inflated_alpha,
+    information_inflation,
+    ncp_for_power,
+    nominal_alpha,
+    obrien_fleming,
+    peeking_table,
+    plan,
+    pocock,
     regions_for,
     retrospective,
 )
@@ -477,3 +492,175 @@ def test_email_needs_eighty_regions_to_tell_three_from_eight() -> None:
         base_rate=design.base_rate,
     )
     assert doubled.return_precision(email.spend, reach, value) < needed
+
+
+# --- Wave 3: repeated looks, from src/mktlab/design/README-sequential.md -----------------------
+
+LOOKS = GEO.weeks - GEO.split
+
+
+def test_the_holdout_is_read_for_thirteen_weeks() -> None:
+    """The number every figure in the sequential README is built on."""
+    assert LOOKS == 13
+
+
+def test_the_inflated_alpha_table_is_what_is_published() -> None:
+    published = {
+        1: 0.050000,
+        2: 0.083118,
+        3: 0.107256,
+        5: 0.141689,
+        10: 0.193357,
+        13: 0.213814,
+        26: 0.268788,
+        52: 0.323512,
+    }
+    for looks, expected in published.items():
+        assert inflated_alpha(looks) == pytest.approx(expected, abs=5e-7), looks
+    assert published[13] / 0.05 == pytest.approx(4.28, abs=5e-3)
+
+
+def test_the_error_rate_is_steepest_at_the_second_look() -> None:
+    """The claim in words: twice is 66% more error than once."""
+    assert (inflated_alpha(2) - 0.05) / 0.05 == pytest.approx(0.66, abs=5e-3)
+
+
+def test_the_peeking_table_is_what_is_published() -> None:
+    table = peeking_table(LOOKS).set_index("rule")
+    assert float(table.loc["naive", "true_alpha"]) == pytest.approx(0.213814, abs=5e-7)
+    assert not bool(table.loc["naive", "valid"])
+    assert float(table.loc["naive", "expected_looks"]) == pytest.approx(6.20, abs=5e-3)
+
+    assert float(table.loc["pocock", "first_boundary"]) == pytest.approx(2.6019, abs=5e-5)
+    assert float(table.loc["pocock", "nominal_alpha_first"]) == pytest.approx(0.0093, abs=5e-5)
+    assert float(table.loc["pocock", "information_inflation"]) == pytest.approx(1.3247, abs=5e-5)
+    assert float(table.loc["pocock", "expected_looks"]) == pytest.approx(7.83, abs=5e-3)
+
+    assert float(table.loc["obrien-fleming", "first_boundary"]) == pytest.approx(7.5799, abs=5e-5)
+    assert float(table.loc["obrien-fleming", "last_boundary"]) == pytest.approx(2.1023, abs=5e-5)
+    assert float(table.loc["obrien-fleming", "nominal_alpha_first"]) == pytest.approx(
+        3.5e-14, rel=0.05
+    )
+    assert float(table.loc["obrien-fleming", "nominal_alpha_last"]) == pytest.approx(
+        0.0355, abs=5e-5
+    )
+    assert float(table.loc["obrien-fleming", "information_inflation"]) == pytest.approx(
+        1.0432, abs=5e-5
+    )
+    assert float(table.loc["obrien-fleming", "expected_looks"]) == pytest.approx(9.79, abs=5e-3)
+
+    for rule in ("read-once", "pocock", "obrien-fleming"):
+        assert float(table.loc[rule, "true_alpha"]) == pytest.approx(0.05, abs=1e-9), rule
+
+
+def test_the_published_boundaries_reproduce_the_classical_ones() -> None:
+    """The external check: these are facts about a recursion, so they can be checked at all."""
+    pocock_constants = {1: 1.9600, 2: 2.1783, 3: 2.2895, 4: 2.3613, 5: 2.4132, 20: 2.6720}
+    for looks, constant in pocock_constants.items():
+        assert pocock(looks)[0] == pytest.approx(constant, abs=5e-5), looks
+
+    nominals = nominal_alpha(obrien_fleming(5))
+    published = (0.000005, 0.001257, 0.008445, 0.022556, 0.041343)
+    for index, expected in enumerate(published):
+        assert nominals[index] == pytest.approx(expected, abs=5e-7), index
+
+
+def test_the_recursion_agrees_with_a_four_million_draw_simulation() -> None:
+    """A closed form that only agrees with itself has been verified against nothing."""
+    rng = np.random.default_rng(7)
+    draws = 4_000_000
+    published = {5: 0.141689, 10: 0.193357, 20: 0.247911}
+    for looks, expected in published.items():
+        assert inflated_alpha(looks) == pytest.approx(expected, abs=5e-7), looks
+        increments = rng.standard_normal((draws, looks))
+        running = np.cumsum(increments, axis=1)
+        limits = np.asarray(fixed_boundary(looks)) * np.sqrt(np.arange(1, looks + 1))
+        simulated = float((np.abs(running) >= limits).any(axis=1).mean())
+        error = 1.96 * (simulated * (1.0 - simulated) / draws) ** 0.5
+        assert abs(simulated - expected) < error + 5e-7, (looks, simulated, expected)
+
+
+def test_the_quadrature_does_not_move_the_published_figures() -> None:
+    for looks in (5, 13, 20):
+        boundary = fixed_boundary(looks)
+        coarse = crossing_probability(boundary, nodes=100)[-1]
+        fine = crossing_probability(boundary, nodes=600)[-1]
+        assert coarse == pytest.approx(fine, abs=1e-9), looks
+        assert crossing_probability(boundary)[-1] == pytest.approx(fine, abs=1e-9), looks
+
+
+def test_the_cost_of_the_honest_boundaries_on_the_real_holdout_is_published_correctly() -> None:
+    design = _published_design()
+    email = next(profile for profile in CHANNELS if profile.channel == "email")
+    reach = float(AUDIENCE.users)
+    value = AUDIENCE.value_per_conversion
+    floor = design.detectable_iroas(email.spend, reach, value)
+    base = regions_for(true_rate_lift(email), design)
+    assert base == 24
+    assert floor == pytest.approx(4.2498, abs=5e-5)
+
+    published = {"obrien-fleming": (1.0432, 4.3406, 26), "pocock": (1.3247, 4.8913, 32)}
+    for rule, (inflation, detectable, regions) in published.items():
+        built = plan(rule, LOOKS)
+        measured = information_inflation(built.boundary, DEFAULT_POWER)
+        assert measured == pytest.approx(inflation, abs=5e-5), rule
+        assert floor * measured**0.5 == pytest.approx(detectable, abs=5e-4), rule
+        assert -(-int(base * measured) // 2) * 2 == regions, rule
+
+    assert published["obrien-fleming"][0] ** 0.5 - 1.0 == pytest.approx(0.021, abs=5e-4)
+
+
+def test_the_exaggeration_table_is_what_is_published() -> None:
+    published = {
+        "read-once": (0.7991, 1.1241, 1.0000, 1.0000),
+        "obrien-fleming": (0.8013, 1.2676, 9.79, 1.0000),
+        "pocock": (0.8012, 1.4794, 7.82, 0.9996),
+        "naive": (0.8006, 1.7273, 7.02, 0.9927),
+    }
+    for rule, (achieved, ratio, looks, same_sign) in published.items():
+        built = plan(rule, LOOKS)
+        ncp = ncp_for_power(
+            built.boundary if built.valid else plan("naive", LOOKS).boundary, DEFAULT_POWER
+        )
+        measured = exaggeration(built.boundary, ncp)
+        assert measured["power"] == pytest.approx(achieved, abs=5e-4), rule
+        assert measured["ratio"] == pytest.approx(ratio, abs=5e-4), rule
+        assert measured["expected_looks"] == pytest.approx(looks, abs=5e-3), rule
+        assert measured["same_sign"] == pytest.approx(same_sign, abs=5e-5), rule
+
+
+def test_reading_once_exaggerates_least_and_peeking_most() -> None:
+    """The ordering the README states, as an assertion rather than a description."""
+    ratios = {}
+    for rule in RULES:
+        built = plan(rule, LOOKS)
+        ncp = ncp_for_power(
+            built.boundary if built.valid else plan("naive", LOOKS).boundary, DEFAULT_POWER
+        )
+        ratios[rule] = exaggeration(built.boundary, ncp)["ratio"]
+    assert ratios["read-once"] < ratios["obrien-fleming"] < ratios["pocock"] < ratios["naive"], (
+        ratios
+    )
+
+
+def test_the_underpowered_exaggeration_is_what_is_published() -> None:
+    weak = ncp_for_power(fixed_boundary(1), 0.30)
+    published = {
+        "read-once": (0.2982, 1.8053, 1.0000, 0.9989),
+        "naive": (0.4769, 2.6352, 9.57, 0.9618),
+    }
+    for rule, (achieved, ratio, looks, same_sign) in published.items():
+        measured = exaggeration(plan(rule, LOOKS).boundary, weak)
+        assert measured["power"] == pytest.approx(achieved, abs=5e-4), rule
+        assert measured["ratio"] == pytest.approx(ratio, abs=5e-4), rule
+        assert measured["expected_looks"] == pytest.approx(looks, abs=5e-3), rule
+        assert measured["same_sign"] == pytest.approx(same_sign, abs=5e-5), rule
+    assert 1.0 - published["naive"][3] == pytest.approx(0.038, abs=5e-4)
+
+
+def test_the_t_against_z_gap_the_readme_quotes_is_right() -> None:
+    """The accuracy of composing normal-theory boundaries with a t-based sizing."""
+    design = _published_design()
+    critical = float(stats.t.ppf(0.975, design.df))
+    normal = float(stats.norm.ppf(0.975))
+    assert critical / normal - 1.0 == pytest.approx(0.033, abs=5e-4)
