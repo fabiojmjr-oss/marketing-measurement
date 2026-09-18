@@ -49,7 +49,17 @@ from mktlab.design import (
     schedule,
     spending_boundary,
 )
-from mktlab.synth import AUDIENCE, CHANNELS, GEO, Dataset, mean_rate, true_rate_lift
+from mktlab.mmm import fit as mmm_fit
+from mktlab.mmm import transform_grid as mmm_transform_grid
+from mktlab.synth import (
+    AUDIENCE,
+    CHANNELS,
+    GEO,
+    MEDIA_MIX,
+    Dataset,
+    mean_rate,
+    true_rate_lift,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -886,3 +896,266 @@ def test_the_spending_family_trades_power_for_calendar_monotonically() -> None:
     assert [built.abandoned_under_alternative for built in plans] == sorted(
         (built.abandoned_under_alternative for built in plans), reverse=True
     )
+
+
+# --- Wave 5: the media mix model, from src/mktlab/mmm/README.md --------------------------------
+
+
+def test_the_panel_is_the_size_the_mmm_readme_quotes(full: Dataset) -> None:
+    assert len(full.spend_panel) == 104
+    assert MEDIA_MIX.adstock == 0.45
+    assert MEDIA_MIX.saturation_at == 1.30
+    assert MEDIA_MIX.budget_swing == 0.30
+    assert MEDIA_MIX.idiosyncratic_swing == 0.12
+    assert MEDIA_MIX.noise_sd == 9.0
+
+
+def test_the_declared_returns_are_what_is_published(full: Dataset) -> None:
+    published = {
+        "social-pago": (0.0300, 0.016957),
+        "email": (0.0320, 0.018087),
+        "busca-generica": (0.0125, 0.007065),
+        "retargeting": (0.0000, 0.000000),
+        "busca-marca": (0.0000, 0.000000),
+    }
+    truth = full.media_truth.set_index("channel")
+    for channel, (average, marginal) in published.items():
+        assert float(truth.loc[channel, "conversions_per_unit_spend"]) == pytest.approx(
+            average, abs=5e-5
+        ), channel
+        assert float(truth.loc[channel, "marginal_conversions_per_unit_spend"]) == pytest.approx(
+            marginal, abs=5e-7
+        ), channel
+    # The ratio between the two, which the README quotes as 1.77 and identical across channels.
+    for channel, (average, marginal) in published.items():
+        if marginal:
+            assert average / marginal == pytest.approx(1.77, abs=5e-3), channel
+
+
+def test_the_spend_correlations_are_what_is_published(full: Dataset) -> None:
+    columns = [f"spend_{profile.channel}" for profile in CHANNELS]
+    correlations = full.spend_panel[columns].corr()
+    published = {
+        ("busca-generica", "busca-marca"): 0.8305,
+        ("busca-generica", "email"): 0.8412,
+        ("busca-generica", "retargeting"): 0.8388,
+        ("busca-generica", "social-pago"): 0.8387,
+        ("busca-marca", "email"): 0.8771,
+        ("email", "social-pago"): 0.8789,
+        ("retargeting", "social-pago"): 0.8584,
+    }
+    for (first, second), value in published.items():
+        assert float(correlations.loc[f"spend_{first}", f"spend_{second}"]) == pytest.approx(
+            value, abs=5e-5
+        ), (first, second)
+    off_diagonal = correlations.to_numpy()[correlations.to_numpy() < 1.0]
+    assert off_diagonal.min() == pytest.approx(0.8305, abs=5e-5)
+
+
+def test_the_variance_inflation_table_is_what_is_published(full: Dataset) -> None:
+    published = {
+        "email": (8.5249, 2.9197),
+        "busca-generica": (6.8811, 2.6232),
+        "busca-marca": (6.4804, 2.5457),
+        "social-pago": (6.3857, 2.5270),
+        "retargeting": (5.7315, 2.3940),
+    }
+    fitted = mmm_fit(full.spend_panel)
+    factors = dict(zip(fitted.channels, fitted.vif, strict=True))
+    for channel, (inflation, multiple) in published.items():
+        assert float(factors[channel]) == pytest.approx(inflation, abs=5e-5), channel
+        assert float(factors[channel]) ** 0.5 == pytest.approx(multiple, abs=5e-5), channel
+
+
+def test_the_fitted_model_is_what_the_mmm_readme_publishes(full: Dataset) -> None:
+    fitted = mmm_fit(full.spend_panel)
+    assert fitted.r_squared == pytest.approx(0.8364, abs=5e-5)
+    assert fitted.residual_sd == pytest.approx(8.718, abs=5e-4)
+    assert fitted.df == 95.0
+    assert fitted.condition_number == pytest.approx(7.01, abs=5e-3)
+
+    published = {
+        "social-pago": (139.3700, 47.7410, 2.9193, 0.0044, 44.59, 234.15),
+        "busca-generica": (18.5883, 44.3302, 0.4193, 0.6759, -69.42, 106.59),
+        "email": (5.7788, 49.9995, 0.1156, 0.9082, -93.48, 105.04),
+        "retargeting": (2.7547, 42.4445, 0.0649, 0.9484, -81.51, 87.02),
+        "busca-marca": (-16.6503, 46.6161, -0.3572, 0.7217, -109.20, 75.89),
+    }
+    table = fitted.table().set_index("channel")
+    for channel, values in published.items():
+        coefficient, error, statistic, p_value, low, high = values
+        row = table.loc[channel]
+        assert float(row["coefficient"]) == pytest.approx(coefficient, abs=5e-4), channel
+        assert float(row["standard_error"]) == pytest.approx(error, abs=5e-4), channel
+        assert float(row["t"]) == pytest.approx(statistic, abs=5e-4), channel
+        assert float(row["p_value"]) == pytest.approx(p_value, abs=5e-4), channel
+        assert float(row["low"]) == pytest.approx(low, abs=5e-2), channel
+        assert float(row["high"]) == pytest.approx(high, abs=5e-2), channel
+
+
+def test_the_model_resolves_one_channel_and_covers_every_truth(full: Dataset) -> None:
+    fitted = mmm_fit(full.spend_panel)
+    published = {
+        "social-pago": (0.020475, 0.006551, 0.034398, 1.21, 1.64),
+        "busca-generica": (0.004013, -0.014985, 0.023011, 0.57, 5.38),
+        "email": (0.007425, -0.120121, 0.134972, 0.41, 14.10),
+        "retargeting": (0.001194, -0.035331, 0.037719, None, None),
+        "busca-marca": (-0.004758, -0.031202, 0.021687, None, None),
+    }
+    returns = fitted.returns(full.media_truth).set_index("channel")
+    for channel, values in published.items():
+        estimate, low, high, times, width = values
+        row = returns.loc[channel]
+        assert float(row["marginal_return"]) == pytest.approx(estimate, abs=5e-7), channel
+        assert float(row["low"]) == pytest.approx(low, abs=5e-7), channel
+        assert float(row["high"]) == pytest.approx(high, abs=5e-7), channel
+        assert bool(row["covers_truth"]), channel
+        if times is not None:
+            assert float(row["times_the_truth"]) == pytest.approx(times, abs=5e-3), channel
+            assert float(row["interval_width_over_truth"]) == pytest.approx(width, abs=5e-3), (
+                channel
+            )
+
+    resolved = [
+        channel
+        for index, channel in enumerate(fitted.channels)
+        if not fitted.interval(index)[0] <= 0.0 <= fitted.interval(index)[1]
+    ]
+    assert resolved == ["social-pago"]
+    assert bool(returns["covers_truth"].all())
+
+
+def test_the_equivalent_range_table_is_what_is_published(full: Dataset) -> None:
+    fitted = mmm_fit(full.spend_panel)
+    index = fitted.channels.index("social-pago")
+    published = {
+        0.001: (102.99, 175.75, 72.77),
+        0.005: (58.02, 220.72, 162.71),
+        0.010: (24.32, 254.42, 230.10),
+    }
+    for loss, (low, high, width) in published.items():
+        got_low, got_high = fitted.equivalent_range(index, loss)
+        assert got_low == pytest.approx(low, abs=5e-3), loss
+        assert got_high == pytest.approx(high, abs=5e-3), loss
+        assert got_high - got_low == pytest.approx(width, abs=5e-3), loss
+
+    low, high = fitted.interval(index)
+    assert low == pytest.approx(44.59, abs=5e-3)
+    assert high == pytest.approx(234.15, abs=5e-3)
+    assert high - low == pytest.approx(189.56, abs=5e-3)
+
+    # The loss of fit the 95% interval corresponds to, which the README quotes as 0.0068.
+    total = fitted.residual_sd**2 * fitted.df / (1.0 - fitted.r_squared)
+    implied = fitted.critical_value**2 * fitted.residual_sd**2 / total
+    assert implied == pytest.approx(0.0068, abs=5e-5)
+    matched = fitted.equivalent_range(index, implied)
+    assert matched[0] == pytest.approx(low, rel=1e-9)
+    assert matched[1] == pytest.approx(high, rel=1e-9)
+
+
+def test_the_transform_grid_is_what_is_published(full: Dataset) -> None:
+    grid = mmm_transform_grid(
+        full.spend_panel,
+        carryovers=(0.0, 0.2, 0.45, 0.6, 0.8),
+        saturations=(0.5, 1.3, 3.0, 10.0),
+        truth=full.media_truth,
+    )
+    published = [
+        (0.45, 3.0, 0.836444, 0.000000, 0.020463, 1.21),
+        (0.45, 1.3, 0.836425, 0.000019, 0.020475, 1.21),
+        (0.45, 10.0, 0.836148, 0.000295, 0.020174, 1.19),
+        (0.45, 0.5, 0.835689, 0.000754, 0.019968, 1.18),
+        (0.60, 1.3, 0.831749, 0.004695, 0.025993, 1.53),
+        (0.60, 0.5, 0.831276, 0.005167, 0.026049, 1.54),
+        (0.20, 10.0, 0.823651, 0.012793, 0.014909, 0.88),
+        (0.20, 0.5, 0.819866, 0.016578, 0.014342, 0.85),
+    ]
+    indexed = grid.set_index(["adstock", "saturation_at"])
+    for carryover, saturation, r_squared, loss, estimate, times in published:
+        row = indexed.loc[(carryover, saturation)]
+        assert float(row["r_squared"]) == pytest.approx(r_squared, abs=5e-7), (
+            carryover,
+            saturation,
+        )
+        assert float(row["fit_loss"]) == pytest.approx(loss, abs=5e-7), (carryover, saturation)
+        assert float(row["social_pago_return"]) == pytest.approx(estimate, abs=5e-7)
+        assert float(row["times_the_truth"]) == pytest.approx(times, abs=5e-3)
+
+    near = grid[grid["fit_loss"] <= 0.01]
+    assert len(near) == 8
+    assert len(grid) == 20
+    assert float(near["times_the_truth"].min()) == pytest.approx(1.18, abs=5e-3)
+    assert float(near["times_the_truth"].max()) == pytest.approx(1.54, abs=5e-3)
+
+    # The claim that corrects the lazy version: the carryover is identified, the saturation is not.
+    right = indexed.xs(0.45, level="adstock")
+    assert float(right["fit_loss"].max()) == pytest.approx(0.000754, abs=5e-7)
+    assert float(right["social_pago_return"].max() / right["social_pago_return"].min()) == (
+        pytest.approx(1.0254, abs=5e-4)
+    )
+    assert float(indexed.loc[(0.60, 1.3), "fit_loss"]) == pytest.approx(0.004695, abs=5e-7)
+
+
+def test_the_misspecified_model_is_what_is_published(full: Dataset) -> None:
+    good = mmm_fit(full.spend_panel)
+    bare = mmm_fit(full.spend_panel, trend=False, seasonality=False)
+    assert good.r_squared == pytest.approx(0.8364, abs=5e-5)
+    assert bare.r_squared == pytest.approx(0.2371, abs=5e-5)
+
+    published = {
+        "social-pago": (0.031340, 0.003280, 0.059400, 1.85),
+        "busca-generica": (-0.014840, -0.054512, 0.024831, -2.10),
+        "email": (-0.093731, -0.355965, 0.168503, -5.18),
+        "busca-marca": (0.049819, -0.004444, 0.104082, None),
+        "retargeting": (-0.016337, -0.089660, 0.056986, None),
+    }
+    returns = bare.returns(full.media_truth).set_index("channel")
+    for channel, values in published.items():
+        estimate, low, high, times = values
+        row = returns.loc[channel]
+        assert float(row["marginal_return"]) == pytest.approx(estimate, abs=5e-7), channel
+        assert float(row["low"]) == pytest.approx(low, abs=5e-7), channel
+        assert float(row["high"]) == pytest.approx(high, abs=5e-7), channel
+        if times is not None:
+            assert float(row["times_the_truth"]) == pytest.approx(times, abs=5e-3), channel
+    assert bool(returns["covers_truth"].all()), "coverage never catches this"
+
+
+def test_the_model_against_the_holdout_is_what_is_published(full: Dataset) -> None:
+    """The comparison of precision relative to what each instrument estimates."""
+    fitted = mmm_fit(full.spend_panel)
+    returns = fitted.returns(full.media_truth).set_index("channel")
+    declared = full.media_truth.set_index("channel")
+    published = {
+        "social-pago": (0.1251, 1.6423, 13.13),
+        "email": (1.1015, 14.1037, 12.80),
+        "busca-generica": (0.4668, 5.3779, 11.52),
+    }
+    for channel, (holdout_width, model_width, ratio) in published.items():
+        profile = next(item for item in CHANNELS if item.channel == channel)
+        panel = full.geo_experiments[full.geo_experiments["channel"] == channel]
+        lift = geo_lift(panel, split=GEO.split, channel=channel)
+        scale = AUDIENCE.users / profile.spend
+        low, high = lift.interval
+        average = float(declared.loc[channel, "conversions_per_unit_spend"])
+        measured_holdout = (high - low) * scale / average
+        measured_model = float(returns.loc[channel, "interval_width_over_truth"])
+        assert measured_holdout == pytest.approx(holdout_width, abs=5e-5), channel
+        assert measured_model == pytest.approx(model_width, abs=5e-5), channel
+        assert measured_model / measured_holdout == pytest.approx(ratio, abs=5e-3), channel
+
+    resolved_by_holdout = sum(
+        geo_lift(
+            full.geo_experiments[full.geo_experiments["channel"] == profile.channel],
+            split=GEO.split,
+            channel=profile.channel,
+        ).significant
+        for profile in CHANNELS
+    )
+    resolved_by_model = sum(
+        1
+        for index in range(len(fitted.channels))
+        if not fitted.interval(index)[0] <= 0.0 <= fitted.interval(index)[1]
+    )
+    assert resolved_by_holdout == 3
+    assert resolved_by_model == 1

@@ -198,6 +198,61 @@ values and the sums of the generated tables are pinned — because a first row c
 while everything after it has moved, which is exactly what happened here and is why the original pin
 did not catch it.
 
+## Wave 5 — the model that replaces the experiment *(complete)*
+
+Waves 2 to 4 priced the holdout honestly, and every one of those prices is a reason somebody refuses
+to run it. This wave fits what gets built instead, on the same account, and asks what it can support.
+
+| Delivered | Where |
+| --- | --- |
+| A weekly spend panel with a declared `baseline`, a shared budget swing and a per-channel one | `synth.spend_panel` |
+| The truth the panel was built from, as average *and* marginal return per unit of spend | `synth.media_truth` |
+| Adstock and Hill saturation as the generator applies them, so a model can be handed the right ones | `synth.adstock`, `synth.saturate` |
+| Variance inflation per channel, and the condition number of the **centred** design | `mmm.variance_inflation`, `mmm.design_matrix` |
+| The fit with coefficients, standard errors, p-values, intervals and the returns they imply | `mmm.fit`, `Fit.table`, `Fit.returns` |
+| The range of coefficients that fits within a tolerated loss, and its closed form | `Fit.equivalent_range` |
+| A grid over the two unobservable transforms, ranked by fit and by the return each implies | `mmm.transform_grid` |
+
+**The thread, at its fifth level.** Wave 1: the figure a report shows is a correct calculation of the
+wrong quantity. Wave 2: the test meant to fix that is sized against the wrong quantity. Wave 3: it is
+not read the way it was sized. Wave 4: the plan that repairs the reading has a price. Wave 5: the
+instrument built to avoid paying that price is, on this account and under the best conditions it will
+ever get, **eleven to thirteen times wider than the test it replaces** — and it is the one usually
+presented without its width.
+
+The result that surprised me is the one about the transforms. The complaint that "the carryover and
+the saturation are guesses, so the answer is a guess" is half wrong: the fit identifies the carryover
+well enough to matter, and is nearly blind to the saturation point — which in this panel is the
+parameter that barely moves the answer. The grid says which half of the slogan is true.
+
+### Defects found and recorded
+
+1. **A condition number of 69.1 that was an artefact of not centring.** Computed on the raw
+   transformed columns it reads as most of the way to the conventional warning line, and essentially
+   all of it is the columns' common mean rather than any relationship between the channels. Centred,
+   it is **7.01** — and the honest reading is the uncomfortable one: the alarm everybody checks does
+   not go off here, while the diagnostic that does bite, the variance inflation, says every interval
+   is two and a half to three times wider than it would have been on independent spend. Found by
+   trying to write the sentence that interpreted the number.
+2. **A variance inflation of 2.7e+30 for a column duplicated exactly.** The right answer is
+   infinity. A regression of one column on its own copy leaves a residual sum of squares that is
+   floating-point noise rather than zero, and 1/(1−R²) obediently returns a very large finite number
+   — which reads as a very high but finite diagnostic rather than as the refusal it should be.
+   Perfect collinearity is now detected by a declared tolerance and reported as infinite. Found by
+   the control case, which is the only place the answer is known in advance.
+3. **Two of my own test helpers were wrong, and the module was right.** One checked the recovery of a
+   marginal return against an absolute half point per channel, which called a 1.4% error a failure;
+   the other compared two independent draws as though one should be ten times the other. Both were
+   demands the mathematics does not make, written while looking at the module instead of at the
+   quantity. A test that fails for the wrong reason costs the same as one that passes for the wrong
+   reason, and it is the more flattering failure because fixing it feels like progress.
+4. **Four sentences in the example that the tables did not support.** Written in the same pass as the
+   tables they described: a correlation range quoted wider than the matrix, a count of sign flips that
+   included a channel whose truth is zero, a fit-loss figure attached to the wrong comparison, and
+   "answers about one channel" where the model answers about five and *resolves* one. None changes a
+   conclusion, which is precisely why each would have survived; all four are now quoted from the
+   claim tests instead of from memory.
+
 ## What is deliberately not here
 
 - **No market statistics, industry benchmarks or third-party figures.** Every number in this
@@ -205,9 +260,13 @@ did not catch it.
   test, and this repository's only real discipline is that its figures are asserted.
 - **No platform API clients.** Nothing here reads an advertising account, and nothing is designed
   to. See [`DISCLAIMER.md`](../DISCLAIMER.md).
-- **No media mix model yet.** Not because it is uninteresting — because it is the easiest place in
-  marketing measurement to produce a confident wrong number, and it deserves a wave of its own with
-  its collinearity made visible rather than a module bolted on here.
+- **No Bayesian media mix model, and no priors.** Wave 5's model is ordinary least squares on
+  purpose: a prior narrows an interval, and the point of the wave is how wide the interval honestly
+  is before anybody narrows it. A prior that does the narrowing is the next wave's subject, not a
+  way to improve this one's figures.
+- **No budget optimiser.** An optimiser on top of wave 5's coefficients would return a confident
+  allocation from a model that distinguishes one channel of five from zero, which is the failure the
+  wave documents rather than a feature to build on it.
 - **No dashboards.** The output is tables and a decision, which is what survives being pasted into
   a document.
 
@@ -227,8 +286,17 @@ did not catch it.
 - **Information time estimated rather than assumed.** A spending function evaluated at a mis-stated
   information fraction spends the wrong amount of error, and in a geo test the fraction has to be
   inferred from the same accumulation that drives the statistic.
-- **Media mix modelling and collinearity.** Channels whose spend moves together, and what a model
-  reports about a coefficient it cannot identify.
+- **Calibrating the model with the experiment instead of choosing between them.** Wave 5 compares
+  the two instruments and stops there. The interesting construction is the holdout's average return
+  entering the model as information about the coefficient — which is what an informative prior is
+  for, and is the honest use of a test that resolved three channels of five.
+- **Out-of-sample validation, because every fit figure in wave 5 is in-sample.** A fit loss of
+  0.0047 between two carryover values says the data prefers one; it does not say the preference
+  would survive on weeks the model has not seen, and a rolling-origin evaluation is how that is
+  settled.
+- **Spend that was set by the answer.** The panel's budget swings for reasons unrelated to how the
+  channels perform. Real plans move spend towards what last quarter's report credited, which puts
+  the model's own output on the right-hand side of its next fit.
 - **Lifetime value and survivorship.** Cohorts measured on the customers who are still there.
 - **Consent and the missing rows.** Measurement bias when the users who refuse tracking are not the
   users who convert.

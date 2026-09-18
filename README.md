@@ -107,12 +107,48 @@ neither can end a test that is going nowhere.
   channel doing nothing costs nothing to hold out, so the case futility fires on is the case with no
   conversion cost to save. What it saves is seven weeks and twenty regions.
 
+## And the model built instead resolves one channel of five
+
+Every one of those costs is a reason somebody says no to the experiment, and a media mix model is
+what gets built instead: a regression of weekly conversions on weekly spend, no regions switched
+off, no conversions given up, an answer for every channel at once. Fitted here on the same account
+and handed **the generator's own carryover and saturation** — a favour no real model receives.
+
+- **The panel decides the answer before the modelling starts.** The five spend series correlate
+  0.8305 to 0.8789, because a media plan is written as shares of a budget and the channels move when
+  the budget does. Variance inflation runs 5.7315 to 8.5249, which multiplies every standard error
+  by 2.39 to 2.92. The condition number of the centred design is **7.01** — comfortably inside the
+  conventional warning line, which is why the alarm that does not go off is not evidence.
+- **With the right transforms it resolves one channel of five.** R-squared 0.8364 and a residual
+  standard deviation of 8.718 against a generator noise of 9.0: the fit has recovered the noise
+  floor. All five intervals contain the truth, one excludes zero, and on the three channels that
+  work the interval is **1.64, 5.38 and 14.10 times** the return it is estimating.
+- **The range of coefficients that fits equally well *is* the confidence interval.** The profile has
+  a closed form — the furthest a coefficient travels while the residual sum of squares rises by δ is
+  its standard error rescaled — so the 95% interval is exactly the set of values costing **0.0068 of
+  R-squared**. There is no second diagnostic hiding behind the standard error.
+- **One of the two unobservable transforms is recoverable and the other is not.** Eight of twenty
+  designs fit within 0.01 of the best, implying returns from **1.18× to 1.54×** the truth. But the
+  fit identifies the carryover: moving it from 0.45 to 0.60 costs 0.0047 of R-squared and moves the
+  return by a quarter, while at the right carryover the whole saturation range 0.5 to 10.0 — a
+  twentyfold span — sits within 0.0008 of the best fit and moves the return by **one per cent**.
+- **Drop the trend and the seasonality and two of the three working channels come back negative.**
+  R-squared falls from 0.8364 to **0.2371**, busca-generica returns −2.10× its truth and email
+  −5.18×, and social-pago is confidently 1.85× — confidently, because that interval still excludes
+  zero. **Every interval still covers the truth.** Coverage does not catch a model that is wrong
+  about the sign of most of an account; intervals that wide cover almost anything.
+- **Against the holdout, per unit of the quantity each one estimates, the model is 11.5 to 13.1
+  times wider.** The holdout resolved three channels of five and cost 260 region-weeks per channel;
+  the model resolved one and cost nothing. That is a trade, not a verdict — and only one of the two
+  instruments is usually presented with its width attached.
+
 ## Modules
 
 | Module | What it decides |
 | --- | --- |
 | [`mktlab.attribution`](src/mktlab/attribution/README.md) | Who gets the credit under six models, what a geo holdout says instead, and the difference between ROAS and its incremental version. |
 | [`mktlab.design`](src/mktlab/design/README.md) | Whether the test is worth running, whether it is being read the way it was sized, and what the plan for reading it should say. Three documents: [sizing](src/mktlab/design/README-sizing.md) — the precision it will have, the smallest **return** it can establish, what it costs if the channel works, and what a null result already ruled out; [repeated looks](src/mktlab/design/README-sequential.md) — what a weekly glance does to the error rate, what the two honest boundaries cost, and by how much an early stop inflates the number you report; and [monitoring](src/mktlab/design/README-monitoring.md) — an alpha-spending schedule for looks nobody agreed in advance, and a futility bound that ends a test going nowhere. |
+| [`mktlab.mmm`](src/mktlab/mmm/README.md) | What a regression of conversions on spend can support when nobody will switch a region off: whether the spend plan permits an answer at all, how much of the answer came from the transforms that were guessed, and how the width compares with the experiment it replaces. |
 
 Every module README is bilingual and carries an **Assumptions and limitations** section, because a
 figure without its assumptions is not a result.
@@ -125,6 +161,7 @@ figure without its assumptions is not a result.
 | [`examples/02_the_test_nobody_sized.py`](examples/02_the_test_nobody_sized.py) | The same holdout, priced before it ran: its precision, which channels it was always going to resolve, the return it could never have established, and what it cost. |
 | [`examples/03_the_test_read_every_monday.py`](examples/03_the_test_read_every_monday.py) | The same holdout again, read weekly instead of once: the error rate that costs, the two boundaries that fix it, what they cost in regions, and the flattering estimate neither of them fixes. |
 | [`examples/04_the_plan_nobody_wrote.py`](examples/04_the_plan_nobody_wrote.py) | The monitoring plan the holdout should have arrived with: the same error rate spent on four different reading schedules, the futility bound written down week by week, and what the right to give up costs. |
+| [`examples/05_the_model_that_replaces_the_experiment.py`](examples/05_the_model_that_replaces_the_experiment.py) | The model built when the holdout is refused, on the same account and with the generator's own transforms handed to it: what the spend plan already decided, the one channel it resolves, the range that fits equally well, and what the misspecification every real model has does to the signs. |
 
 ## Install and run
 
@@ -136,12 +173,13 @@ python examples/01_who_gets_the_credit.py
 python examples/02_the_test_nobody_sized.py
 python examples/03_the_test_read_every_monday.py
 python examples/04_the_plan_nobody_wrote.py
+python examples/05_the_model_that_replaces_the_experiment.py
 ```
 
 ## How the claims are kept honest
 
-**281 tests, 100% statement and branch coverage.** 232 of them run in seconds and gate every push.
-The remaining 49 re-derive, from the generator, every figure quoted in every README on this
+**339 tests, 100% statement and branch coverage.** 279 of them run in seconds and gate every push.
+The remaining 60 re-derive, from the generator, every figure quoted in every README on this
 repository, and run every example script. A change that moves a published number breaks the build
 instead of leaving the text quietly wrong.
 
@@ -164,9 +202,10 @@ Three disciplines, each of which was adopted after it caught something:
    sampler**, so the stream position depends on how many values are asked for and not on which
    library version answers. That rule is enforced against the source, because the first version of
    this repository published figures that held on one machine and moved on a clean install.
-3. **Connecting the modules finds defects that writing more modules does not.** Seven of the eight
+3. **Connecting the modules finds defects that writing more modules does not.** Fifteen of the seventeen
    defects recorded so far were found by writing an example, a control case or a sentence — not by
-   reading code.
+   reading code. The two exceptions were a coverage report showing a branch no test could reach, and
+   a clean install that did not reproduce the published figures.
    They are recorded in the module documentation rather than quietly fixed — the return function
    once multiplied a channel's *share* by total conversions, which spreads the untouched
    conversions across the channels and is precisely the error the module exists to warn about.

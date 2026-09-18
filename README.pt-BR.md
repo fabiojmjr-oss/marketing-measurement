@@ -107,12 +107,50 @@ começar, e nenhuma consegue encerrar um teste que não vai dar em nada.
   que não faz nada não custa nada para segurar, então o caso em que a futilidade dispara é o caso sem
   custo de conversão a economizar. O que ela economiza são sete semanas e vinte regiões.
 
+## E o modelo construído no lugar resolve um canal em cinco
+
+Cada um desses custos é um motivo para alguém dizer não ao experimento, e um modelo de mix de mídia é
+o que se constrói no lugar: uma regressão de conversões semanais sobre investimento semanal, nenhuma
+região desligada, nenhuma conversão abdicada, uma resposta para todos os canais ao mesmo tempo.
+Ajustado aqui na mesma conta e recebendo **o carryover e a saturação do próprio gerador** — um favor
+que nenhum modelo real recebe.
+
+- **O painel decide a resposta antes de a modelagem começar.** As cinco séries de investimento
+  correlacionam entre 0,8305 e 0,8789, porque um plano de mídia é escrito como participações de um
+  orçamento e os canais se movem quando o orçamento se move. A inflação de variância vai de 5,7315 a
+  8,5249, o que multiplica todo erro-padrão por 2,39 a 2,92. O número de condição do desenho
+  centrado é **7,01** — confortavelmente dentro da linha de alerta convencional, e é por isso que o
+  alarme que não toca não é evidência.
+- **Com os transformes certos, ele resolve um canal em cinco.** R-quadrado 0,8364 e desvio-padrão
+  residual de 8,718 contra um ruído de gerador de 9,0: o ajuste recuperou o piso de ruído. Os cinco
+  intervalos contêm a verdade, um exclui o zero, e nos três canais que funcionam o intervalo é
+  **1,64, 5,38 e 14,10 vezes** o retorno que está estimando.
+- **A faixa de coeficientes que ajusta igualmente bem *é* o intervalo de confiança.** O perfil tem
+  forma fechada — o mais longe que um coeficiente vai enquanto a soma de quadrados dos resíduos sobe
+  δ é seu erro-padrão reescalado — de modo que o intervalo de 95% é exatamente o conjunto de valores
+  que custa **0,0068 de R-quadrado**. Não há um segundo diagnóstico escondido atrás do erro-padrão.
+- **Um dos dois transformes não observáveis é recuperável e o outro não é.** Oito de vinte desenhos
+  ajustam dentro de 0,01 do melhor, implicando retornos de **1,18× a 1,54×** a verdade. Mas o ajuste
+  identifica o carryover: movê-lo de 0,45 para 0,60 custa 0,0047 de R-quadrado e move o retorno em um
+  quarto, enquanto no carryover certo toda a faixa de saturação de 0,5 a 10,0 — vinte vezes — fica
+  dentro de 0,0008 do melhor ajuste e move o retorno em **um por cento**.
+- **Tire a tendência e a sazonalidade e dois dos três canais que funcionam voltam negativos.** O
+  R-quadrado cai de 0,8364 para **0,2371**, busca-generica volta a −2,10× sua verdade e email a
+  −5,18×, e social-pago vem confiantemente a 1,85× — confiantemente, porque aquele intervalo ainda
+  exclui o zero. **Todo intervalo ainda cobre a verdade.** Cobertura não pega um modelo que erra o
+  sinal da maior parte de uma conta; intervalos tão largos cobrem quase qualquer coisa.
+- **Contra o holdout, por unidade da quantidade que cada um estima, o modelo é 11,5 a 13,1 vezes mais
+  largo.** O holdout resolveu três canais em cinco e custou 260 região-semanas por canal; o modelo
+  resolveu um e não custou nada. Isso é uma troca, não um veredito — e só um dos dois instrumentos
+  costuma ser apresentado com sua largura em anexo.
+
 ## Módulos
 
 | Módulo | O que decide |
 | --- | --- |
 | [`mktlab.attribution`](src/mktlab/attribution/README.md) | Quem leva o crédito sob seis modelos, o que um holdout geográfico diz em vez disso, e a diferença entre o ROAS e sua versão incremental. |
 | [`mktlab.design`](src/mktlab/design/README.md) | Se o teste vale ser rodado, se está sendo lido do jeito para o qual foi dimensionado, e o que o plano de leitura deveria dizer. Três documentos: [dimensionamento](src/mktlab/design/README-sizing.md) — a precisão que ele terá, o menor **retorno** que consegue estabelecer, quanto custa se o canal funcionar, e o que um resultado nulo já descartou; [leituras repetidas](src/mktlab/design/README-sequential.md) — o que uma olhada semanal faz com a taxa de erro, quanto custam as duas fronteiras honestas, e quanto uma parada antecipada infla o número que você reporta; e [monitoramento](src/mktlab/design/README-monitoring.md) — um cronograma de gasto de alfa para olhadas que ninguém combinou antes, e uma fronteira de futilidade que encerra um teste que não vai dar em nada. |
+| [`mktlab.mmm`](src/mktlab/mmm/README.md) | O que uma regressão de conversões sobre investimento consegue sustentar quando ninguém aceita desligar uma região: se o plano de investimento permite alguma resposta, quanto da resposta veio dos transformes que foram adivinhados, e como a largura se compara com o experimento que ele substitui. |
 
 Todo README de módulo é bilíngue e traz uma seção **Premissas e limitações**, porque uma cifra sem
 suas premissas não é um resultado.
@@ -125,6 +163,7 @@ suas premissas não é um resultado.
 | [`examples/02_the_test_nobody_sized.py`](examples/02_the_test_nobody_sized.py) | O mesmo holdout, precificado antes de rodar: sua precisão, quais canais ele sempre iria resolver, o retorno que ele nunca conseguiria estabelecer, e quanto custou. |
 | [`examples/03_the_test_read_every_monday.py`](examples/03_the_test_read_every_monday.py) | O mesmo holdout outra vez, lido semanalmente em vez de uma só vez: a taxa de erro que isso custa, as duas fronteiras que corrigem, quanto custam em regiões, e a estimativa lisonjeira que nenhuma das duas corrige. |
 | [`examples/04_the_plan_nobody_wrote.py`](examples/04_the_plan_nobody_wrote.py) | O plano de monitoramento com o qual o holdout deveria ter chegado: a mesma taxa de erro gasta em quatro calendários de leitura diferentes, a fronteira de futilidade escrita semana a semana, e quanto custa o direito de desistir. |
+| [`examples/05_the_model_that_replaces_the_experiment.py`](examples/05_the_model_that_replaces_the_experiment.py) | O modelo construído quando o holdout é recusado, na mesma conta e recebendo os transformes do próprio gerador: o que o plano de investimento já decidiu, o único canal que ele resolve, a faixa que ajusta igualmente bem, e o que a má especificação que todo modelo real tem faz com os sinais. |
 
 ## Instalar e rodar
 
@@ -136,12 +175,13 @@ python examples/01_who_gets_the_credit.py
 python examples/02_the_test_nobody_sized.py
 python examples/03_the_test_read_every_monday.py
 python examples/04_the_plan_nobody_wrote.py
+python examples/05_the_model_that_replaces_the_experiment.py
 ```
 
 ## Como as afirmações são mantidas honestas
 
-**281 testes, 100% de cobertura de linhas e de ramos.** 232 deles rodam em segundos e liberam cada
-push. Os 49 restantes re-derivam, a partir do gerador, toda cifra citada em todo README deste
+**339 testes, 100% de cobertura de linhas e de ramos.** 279 deles rodam em segundos e liberam cada
+push. Os 60 restantes re-derivam, a partir do gerador, toda cifra citada em todo README deste
 repositório, e rodam todo script de exemplo. Uma mudança que mova um número publicado quebra o build
 em vez de deixar o texto silenciosamente errado.
 
@@ -166,9 +206,10 @@ Três disciplinas, cada uma adotada depois de ter pegado algo:
    e não de qual versão de biblioteca responde. Essa regra é verificada contra o código-fonte,
    porque a primeira versão deste repositório publicou cifras que valiam numa máquina e mudavam numa
    instalação limpa.
-3. **Conectar os módulos encontra defeitos que escrever mais módulos não encontra.** Sete dos oito
+3. **Conectar os módulos encontra defeitos que escrever mais módulos não encontra.** Quinze dos dezessete
    defeitos registrados até aqui foram achados escrevendo um exemplo, um caso de controle ou uma
-   frase — não lendo código. Eles estão registrados na documentação do módulo em vez de corrigidos em silêncio — a
+   frase — não lendo código. As duas exceções foram um relatório de cobertura mostrando um ramo que
+   nenhum teste alcançava, e uma instalação limpa que não reproduziu as cifras publicadas. Eles estão registrados na documentação do módulo em vez de corrigidos em silêncio — a
    função de retorno um dia multiplicou a *participação* de um canal pelo total de conversões, o que
    espalha as conversões sem toque entre os canais e é precisamente o erro que o módulo existe para
    denunciar.

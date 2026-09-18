@@ -184,3 +184,67 @@ GEO = GeoProfile(
     geo_sd=0.010,
     weekly_trend=0.0004,
 )
+
+
+@dataclass(frozen=True)
+class MediaMixProfile:
+    """A weekly spend panel, and everything a media mix model has to recover from it.
+
+    The panel is the other way of looking at the same account. Wave 1's tables are user-level; this
+    one is what a marketing team actually has in a spreadsheet: weeks down the side, spend per
+    channel across the top, conversions in the last column. It is the input to the model people
+    reach for when nobody will pay for a holdout.
+
+    Every parameter a model has to recover is declared here, including the two nobody can observe:
+    how much of a week's spend carries into the following weeks, and where the returns start to
+    bend.
+
+    Attributes:
+        weeks: Length of the panel.
+        base_conversions: Weekly conversions with no marketing at all.
+        weekly_trend: Conversions added per week by everything other than marketing. A model that
+            omits it credits the trend to whichever channel grew fastest.
+        seasonal_amplitude: Size of the yearly seasonal swing, as a share of the baseline.
+        seasonal_period: Weeks in one seasonal cycle.
+        noise_sd: Standard deviation of the weekly conversion noise.
+        budget_swing: How much the *whole* budget moves week to week, as a share of its level. This
+            is the parameter that creates collinearity: when the total budget moves, channels
+            planned as a share of it move together, and no model can tell their effects apart.
+        idiosyncratic_swing: How much each channel moves on its own, independently of the others.
+            The ratio of this to ``budget_swing`` decides whether the panel is identifiable at all.
+        adstock: Share of a week's effect that carries into the next week, and so on geometrically.
+        saturation_at: Weekly spend, as a multiple of a channel's average, at which the response
+            reaches half of its ceiling. Small means returns bend early.
+    """
+
+    weeks: int
+    base_conversions: float
+    weekly_trend: float
+    seasonal_amplitude: float
+    seasonal_period: float
+    noise_sd: float
+    budget_swing: float
+    idiosyncratic_swing: float
+    adstock: float
+    saturation_at: float
+
+
+#: Two years of weekly data, which is what a media mix model is usually fitted on and is also why
+#: it struggles: 104 rows to estimate a baseline, a trend, a seasonal cycle and five channel
+#: effects, from spend that mostly moves together.
+#:
+#: The swings are the load-bearing choice. A budget that moves 30% week to week while each channel
+#: moves only 12% on its own is a panel where the channels are nearly the same variable, and that is
+#: the ordinary case rather than a pathological one - media plans are written as shares of a budget.
+MEDIA_MIX = MediaMixProfile(
+    weeks=104,
+    base_conversions=120.0,
+    weekly_trend=0.35,
+    seasonal_amplitude=0.18,
+    seasonal_period=52.0,
+    noise_sd=9.0,
+    budget_swing=0.30,
+    idiosyncratic_swing=0.12,
+    adstock=0.45,
+    saturation_at=1.30,
+)

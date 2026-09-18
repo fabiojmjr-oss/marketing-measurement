@@ -27,6 +27,13 @@ drawn as a declared function of it, and conversion as a declared function of bot
 the READMEs about a model getting the wrong answer is a claim against that declared truth, not
 against an observed one.
 
+The weekly panel the media mix model is fitted on is invented in the same way, and carries a
+second column no real account has: `baseline`, the conversions the account would have recorded in
+that week with no marketing at all. The budget swing, the per-channel swing, the trend, the seasonal
+amplitude, the carryover and the saturation point are all declared parameters in
+`src/mktlab/synth/config.py`, and every statement about what a model recovered is measured against
+them.
+
 Everything in the generator was designed to make a particular measurement situation visible — two
 channels whose entire performance is selection on intent, one channel that creates demand it does
 not get credited for, conversions with no touch at all, a holdout large enough to resolve some
@@ -71,6 +78,12 @@ na prática a atribuição não pode ser confrontada com a verdade. Aqui ela é 
 distribuição Beta declarada, a exposição é sorteada como função declarada dela, e a conversão como
 função declarada de ambas. Toda afirmação nos READMEs sobre um modelo chegar à resposta errada é uma
 afirmação contra essa verdade declarada, não contra uma verdade observada.
+
+O painel semanal sobre o qual o modelo de mix de mídia é ajustado é inventado do mesmo jeito, e
+carrega uma segunda coluna que nenhuma conta real tem: `baseline`, as conversões que a conta teria
+registrado naquela semana sem marketing algum. A oscilação de orçamento, a oscilação por canal, a
+tendência, a amplitude sazonal, o carryover e o ponto de saturação são todos parâmetros declarados em
+`src/mktlab/synth/config.py`, e toda afirmação sobre o que um modelo recuperou é medida contra eles.
 
 Tudo no gerador foi desenhado para tornar visível uma situação de medição específica — dois canais
 cujo desempenho inteiro é seleção por intenção, um canal que cria demanda pela qual não é creditado,
