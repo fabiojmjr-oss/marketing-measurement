@@ -15,6 +15,12 @@ read once, at the end. Reading a thirteen-week holdout every Monday against the 
 false-positive rate from 5% to 21.4%. Two boundaries hold it at 5% instead, at prices that are
 computed here rather than assumed - and neither of them repairs the other half of the damage, which
 is that a test stopped early reports an effect larger than the one it measured.
+
+It also builds the plan a real test needs rather than the one a textbook assumes: an alpha-spending
+schedule, so the looks do not have to be evenly spaced or even known in advance, and a futility
+boundary, so a test that cannot succeed ends instead of running to the calendar. What that saves is
+weeks rather than conversions, and the module is explicit about it - the arithmetic of wave 2 says a
+channel doing nothing costs nothing to hold out, which is exactly the case futility fires on.
 """
 
 from .geo import (
@@ -37,13 +43,23 @@ from .sequential import (
     NODES,
     PEEKING_COLUMNS,
     RULES,
+    SCHEDULE_COLUMNS,
+    SPENDING,
+    UNREACHABLE,
+    MonitoringPlan,
     SequentialPlan,
+    alpha_spent,
+    beta_spent,
     crossing_probability,
+    equal_information,
     exaggeration,
     expected_looks,
     fixed_boundary,
+    futility_boundary,
+    futility_probability,
     inflated_alpha,
     information_inflation,
+    monitoring_plan,
     ncp_for_power,
     nominal_alpha,
     obrien_fleming,
@@ -51,6 +67,8 @@ from .sequential import (
     plan,
     pocock,
     power,
+    schedule,
+    spending_boundary,
 )
 
 __all__ = [
@@ -62,18 +80,28 @@ __all__ = [
     "NODES",
     "PEEKING_COLUMNS",
     "RULES",
+    "SCHEDULE_COLUMNS",
     "SIZING_COLUMNS",
+    "SPENDING",
     "UNDERPOWERED",
+    "UNREACHABLE",
     "GeoDesign",
+    "MonitoringPlan",
     "Retrospective",
     "SequentialPlan",
+    "alpha_spent",
+    "beta_spent",
     "crossing_probability",
+    "equal_information",
     "exaggeration",
     "expected_looks",
     "fixed_boundary",
+    "futility_boundary",
+    "futility_probability",
     "holdout_cost",
     "inflated_alpha",
     "information_inflation",
+    "monitoring_plan",
     "ncp_for_power",
     "nominal_alpha",
     "obrien_fleming",
@@ -84,5 +112,7 @@ __all__ = [
     "power_curve",
     "regions_for",
     "retrospective",
+    "schedule",
     "sizing_table",
+    "spending_boundary",
 ]

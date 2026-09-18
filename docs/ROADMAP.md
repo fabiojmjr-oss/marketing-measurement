@@ -114,6 +114,50 @@ a decision rule nobody knew was in force.
    O'Brien-Fleming's first nominal level as 1e-13 where it is 3.5e-14. It changes no argument, which
    is exactly why it would have survived: the claim tests now assert it.
 
+## Wave 4 — the plan nobody wrote *(complete)*
+
+Wave 3's boundaries hold the error rate, and both of them assume the looks are evenly spaced and known
+before the test starts. Neither can end a test that is going nowhere. This wave removes both
+limitations.
+
+| Delivered | Where |
+| --- | --- |
+| The recursion generalised to unequal information, and to a lower boundary as well as an upper one | `sequential._recursion` |
+| Alpha spending: O'Brien-Fleming-like, Pocock-like, and the power family as a dial between them | `alpha_spent`, `spending_boundary` |
+| Futility by beta spending, solved against a declared alternative | `beta_spent`, `futility_boundary` |
+| The probability of abandoning a test, which under the alternative is the power it costs | `futility_probability` |
+| A monitoring plan as an object, and the schedule table a team has to be handed | `MonitoringPlan`, `monitoring_plan`, `schedule` |
+| A measured floor on how close two reads may be before the quadrature fails | `MIN_INCREMENT` |
+
+**The thread, at its fourth level.** Wave 1: the figure a report shows is a correct calculation of the
+wrong quantity. Wave 2: the test meant to fix that is sized against the wrong quantity. Wave 3: the
+test is not read the way it was sized. Wave 4: the boundary that fixes the reading assumes a schedule
+nobody keeps, and the plan that fixes *that* has a price — 8.9% more information and a 23.4% chance of
+abandoning a winner — which is the first honest cost in the whole arc that is small enough to simply
+pay.
+
+### Defects found and recorded
+
+1. **This roadmap claimed futility would save the conversions wave 2 priced. It does not, and wave
+   2's own arithmetic says so.** The cost of a holdout is the held-out population times the channel's
+   *real* lift, so a channel doing nothing costs nothing to hold out — which is exactly the case a
+   futility bound fires on. What it saves there is calendar: about seven weeks, twenty regions kept
+   from a channel nobody can act on, and a decision that cannot be taken while the test runs. The 115
+   conversions that early stopping does save on a channel that works are the *efficacy* boundary's
+   doing. The claim had the mechanism backwards and is corrected in
+   [`README-monitoring.md`](../src/mktlab/design/README-monitoring.md) rather than deleted.
+2. **A plan with no futility bound reported twice the error rate it was built for.** Storing "nothing"
+   for "cannot give up" collided with the recursion's convention, where an absent futility bound means
+   the two-sided test wave 3 is built on — so a boundary solved to spend a one-sided 0.025 reported
+   0.0500. A plan that cannot abandon now carries an unreachable bound rather than a missing one, and
+   `can_abandon` says which kind it is. Found by reading the verdict line of the very first plan built.
+3. **A control case returned −1.17 as a probability.** Two looks taken an instant apart in information
+   should change nothing, and instead the convolution kernel narrowed to a spike the quadrature could
+   not represent. The behaviour is now measured rather than guessed — smooth and correct down to a gap
+   of 2e-04 of the information, wrong at 1e-04, nonsense at 1e-05 — and gaps below a floor five times
+   above the last good value are refused by name. Found by writing the control case, not by reading
+   code.
+
 ## The reproducibility fix *(after wave 3)*
 
 The repository's central promise is that the default seed reproduces every published number. It did
@@ -173,13 +217,16 @@ did not catch it.
   form is a floor on the noise, because real regions carry autocorrelation and region-specific
   seasonality. The distance between that floor and a spread measured from the pre-period is itself
   the interesting number, and it is how a sizing stops being optimistic.
-- **Alpha spending, and futility.** Wave 3's boundaries assume equal information between looks and
-  can only stop a test for succeeding. A Lan-DeMets spending function handles unequal spacing, and a
-  futility boundary is what would actually save the forgone conversions wave 2 priced — a test that
-  cannot win should end early, and nothing here can end it.
 - **A bias-adjusted estimate at the stopping time.** Wave 3 measures the exaggeration and does not
   repair it, so its honest use is as an argument against stopping early rather than as a correction
   factor.
+- **Binding futility, which recovers the error rate the non-binding version gives back.** Wave 4's
+  plans spend 0.0224 of an intended 0.025 because the efficacy boundary is solved as though the test
+  could never be abandoned. Re-solving it against the futility bound is more efficient and only holds
+  if the bound is obeyed, which is a governance question before it is a statistical one.
+- **Information time estimated rather than assumed.** A spending function evaluated at a mis-stated
+  information fraction spends the wrong amount of error, and in a geo test the fraction has to be
+  inferred from the same accumulation that drives the statistic.
 - **Media mix modelling and collinearity.** Channels whose spend moves together, and what a model
   reports about a coefficient it cannot identify.
 - **Lifetime value and survivorship.** Cohorts measured on the customers who are still there.

@@ -90,12 +90,29 @@ runs for thirteen weeks on a dashboard.
   48%, and weekly peeking by **73%**. On an underpowered test, read weekly, the reported effect is
   **2.63 times** the truth and 3.9% of the results that clear the line point the wrong way.
 
+## And the plan for reading it can be written down
+
+Both of those boundaries assume the looks are evenly spaced and known before the test starts, and
+neither can end a test that is going nowhere.
+
+- **An alpha-spending schedule fixes the first.** Commit to how much error may be spent by each point
+  in the accumulation of information, and the boundary follows — so thirteen weekly reads, three
+  monthly ones, four starting halfway through, or a single read at the end all spend **exactly
+  0.025**, and the last of those returns 1.96.
+- **A futility bound fixes the second, and its price is the first honest cost in this arc small
+  enough to simply pay:** on a channel doing nothing the test ends after **six** weekly reads instead
+  of thirteen, for **8.9% more information** and a **23.4% chance of abandoning a test that would
+  have worked**.
+- **And it saves calendar, not conversions** — which this repository's own roadmap got backwards. A
+  channel doing nothing costs nothing to hold out, so the case futility fires on is the case with no
+  conversion cost to save. What it saves is seven weeks and twenty regions.
+
 ## Modules
 
 | Module | What it decides |
 | --- | --- |
 | [`mktlab.attribution`](src/mktlab/attribution/README.md) | Who gets the credit under six models, what a geo holdout says instead, and the difference between ROAS and its incremental version. |
-| [`mktlab.design`](src/mktlab/design/README.md) | Whether the test is worth running, and whether it is being read the way it was sized. Two documents: [sizing](src/mktlab/design/README-sizing.md) — the precision it will have, the smallest **return** it can establish, what it costs if the channel works, and what a null result already ruled out; and [repeated looks](src/mktlab/design/README-sequential.md) — what a weekly glance does to the error rate, what the two honest boundaries cost, and by how much an early stop inflates the number you report. |
+| [`mktlab.design`](src/mktlab/design/README.md) | Whether the test is worth running, whether it is being read the way it was sized, and what the plan for reading it should say. Three documents: [sizing](src/mktlab/design/README-sizing.md) — the precision it will have, the smallest **return** it can establish, what it costs if the channel works, and what a null result already ruled out; [repeated looks](src/mktlab/design/README-sequential.md) — what a weekly glance does to the error rate, what the two honest boundaries cost, and by how much an early stop inflates the number you report; and [monitoring](src/mktlab/design/README-monitoring.md) — an alpha-spending schedule for looks nobody agreed in advance, and a futility bound that ends a test going nowhere. |
 
 Every module README is bilingual and carries an **Assumptions and limitations** section, because a
 figure without its assumptions is not a result.
@@ -107,6 +124,7 @@ figure without its assumptions is not a result.
 | [`examples/01_who_gets_the_credit.py`](examples/01_who_gets_the_credit.py) | Six attribution models on one set of journeys, the Shapley identity, the conversions nobody touched, and the holdout that overrules all six. |
 | [`examples/02_the_test_nobody_sized.py`](examples/02_the_test_nobody_sized.py) | The same holdout, priced before it ran: its precision, which channels it was always going to resolve, the return it could never have established, and what it cost. |
 | [`examples/03_the_test_read_every_monday.py`](examples/03_the_test_read_every_monday.py) | The same holdout again, read weekly instead of once: the error rate that costs, the two boundaries that fix it, what they cost in regions, and the flattering estimate neither of them fixes. |
+| [`examples/04_the_plan_nobody_wrote.py`](examples/04_the_plan_nobody_wrote.py) | The monitoring plan the holdout should have arrived with: the same error rate spent on four different reading schedules, the futility bound written down week by week, and what the right to give up costs. |
 
 ## Install and run
 
@@ -117,12 +135,13 @@ make check-all   # the above plus every documented figure re-derived
 python examples/01_who_gets_the_credit.py
 python examples/02_the_test_nobody_sized.py
 python examples/03_the_test_read_every_monday.py
+python examples/04_the_plan_nobody_wrote.py
 ```
 
 ## How the claims are kept honest
 
-**225 tests, 100% statement and branch coverage.** 185 of them run in seconds and gate every push.
-The remaining 40 re-derive, from the generator, every figure quoted in every README on this
+**281 tests, 100% statement and branch coverage.** 232 of them run in seconds and gate every push.
+The remaining 49 re-derive, from the generator, every figure quoted in every README on this
 repository, and run every example script. A change that moves a published number breaks the build
 instead of leaving the text quietly wrong.
 

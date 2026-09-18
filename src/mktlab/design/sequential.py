@@ -34,6 +34,7 @@ flattering in the same direction as everything else this repository measures.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from functools import lru_cache
 
@@ -83,8 +84,140 @@ def _validate(looks: int) -> None:
 #: hashable arguments, and the same boundary gets asked about several times over - its own size, its
 #: validity, its power, its information cost. Without the cache the solvers dominate every run; with
 #: it, nothing recomputes an answer it already has. The bound is generous rather than unlimited,
-#: because a caller sweeping designs should not grow a cache without end.
+#: because a caller sweeping designs should not grow a cache without end. The boundary solvers are
+#: cached for the same reason and it matters more for them: each runs a root finder per look, and
+#: every evaluation inside that root finder runs the whole recursion.
 CACHE_SIZE = 4_096
+
+
+def equal_information(looks: int) -> tuple[float, ...]:
+    """The information fractions of a test read at evenly spaced points.
+
+    The assumption wave 3's boundaries are built on, written down so that departing from it is a
+    choice rather than an oversight.
+    """
+    _validate(looks)
+    return tuple((index + 1) / looks for index in range(looks))
+
+
+def _checked_fractions(fractions: tuple[float, ...] | None, looks: int) -> tuple[float, ...]:
+    """Validate information fractions, or supply the evenly spaced ones."""
+    if fractions is None:
+        return equal_information(looks)
+    if len(fractions) != looks:
+        raise ValueError(
+            f"one information fraction per look: {len(fractions)} fractions for {looks} looks"
+        )
+    if any(later <= earlier for earlier, later in zip(fractions, fractions[1:], strict=False)):
+        raise ValueError(f"information fractions must increase, got {fractions}")
+    if fractions[0] <= 0.0:
+        raise ValueError(f"the first information fraction must be positive, got {fractions[0]}")
+    if fractions[-1] != 1.0:
+        raise ValueError(f"the last look has all the information, got {fractions[-1]}")
+    increments = [
+        later - earlier for earlier, later in zip((0.0, *fractions), fractions, strict=False)
+    ]
+    smallest = min(increments)
+    if smallest < MIN_INCREMENT:
+        raise ValueError(
+            f"look {increments.index(smallest) + 1} adds {smallest:.2e} of the information, below "
+            f"the {MIN_INCREMENT:.0e} this recursion can resolve; two reads that close together "
+            f"are one read"
+        )
+    return fractions
+
+
+def _recursion(
+    boundary: tuple[float, ...],
+    drift: float,
+    nodes: int,
+    fractions: tuple[float, ...] | None,
+    futility: tuple[float, ...] | None,
+) -> tuple[tuple[float, ...], tuple[float, ...]]:
+    """The Armitage-McPherson-Rowe recursion, returning both ways out of the test.
+
+    Information accumulates to ``looks`` by the last read, so the running sum at look ``k`` is
+    normal with variance ``t_k`` and mean ``drift * t_k``, and the test continues while the
+    standardised statistic stays inside its boundaries. The density of the sum restricted to the
+    continuation region is carried forward look by look, which is the only way to get the joint
+    probability right: the looks are not independent, because each one contains all the data of the
+    ones before it.
+
+    Returns:
+        ``(rejected, stopped_for_futility)``, each cumulative by look. Without a futility boundary
+        the second is all zeros and the first counts both tails, which is the two-sided test wave 3
+        is built on. With one, the test is one-sided in the efficacy direction and the two together
+        say how the probability left the continuation region.
+    """
+    _validate(len(boundary))
+    if any(limit <= 0.0 for limit in boundary):
+        raise ValueError("every critical value must be positive")
+    looks = len(boundary)
+    shares = _checked_fractions(fractions, looks)
+    if futility is not None and len(futility) != looks:
+        raise ValueError(f"one futility bound per look: {len(futility)} bounds for {looks} looks")
+
+    information = [share * looks for share in shares]
+    upper = [boundary[index] * np.sqrt(information[index]) for index in range(looks)]
+    # The futility bound is a floor on the same statistic, so it scales the same way. Without one,
+    # the floor is the mirror of the efficacy bound and leaving through it is a rejection.
+    lower = (
+        [futility[index] * np.sqrt(information[index]) for index in range(looks)]
+        if futility is not None
+        else [-value for value in upper]
+    )
+    for index in range(looks):
+        # Equality is legitimate at the last look and nowhere else: a futility bound meeting the
+        # efficacy bound there is what "the test ends, one way or the other" means, and the
+        # recursion handles it - the continuation region collapses and all the surviving mass leaves
+        # through one side or the other. Before the last look it would mean a test with nowhere to
+        # continue to, which is a design error rather than a number to return.
+        if lower[index] > upper[index] or (lower[index] == upper[index] and index != looks - 1):
+            raise ValueError(
+                f"the futility bound at look {index + 1} leaves no continuation region: "
+                f"{futility[index] if futility else 0.0} against {boundary[index]}"
+            )
+
+    abscissa, quadrature = np.polynomial.legendre.leggauss(nodes)
+
+    def region(index: int) -> tuple[np.ndarray, np.ndarray]:
+        """Quadrature grid and weights over the continuation region at one look."""
+        half = (upper[index] - lower[index]) / 2.0
+        middle = (upper[index] + lower[index]) / 2.0
+        return middle + half * abscissa, half * quadrature
+
+    step = information[0]
+    root = np.sqrt(step)
+    grid, weights = region(0)
+    density = stats.norm.pdf((grid - drift * step) / root) / root
+    if futility is None:
+        rejected = [1.0 - float(weights @ density)]
+        futile = [0.0]
+    else:
+        rejected = [float(stats.norm.sf((upper[0] - drift * step) / root))]
+        futile = [float(stats.norm.cdf((lower[0] - drift * step) / root))]
+
+    for index in range(1, looks):
+        step = information[index] - information[index - 1]
+        root = np.sqrt(step)
+        new_grid, new_weights = region(index)
+        kernel = stats.norm.pdf((new_grid[:, None] - grid[None, :] - drift * step) / root) / root
+        surviving = weights * density
+        density = kernel @ surviving
+        if futility is None:
+            grid, weights = new_grid, new_weights
+            rejected.append(1.0 - float(weights @ density))
+            futile.append(0.0)
+            continue
+        # With a futility bound the mass leaving upwards has to be counted rather than inferred from
+        # what is left, because mass also leaves downwards and that is not a rejection.
+        standardised_up = (upper[index] - grid - drift * step) / root
+        standardised_down = (lower[index] - grid - drift * step) / root
+        rejected.append(rejected[-1] + float((stats.norm.sf(standardised_up) * surviving).sum()))
+        futile.append(futile[-1] + float((stats.norm.cdf(standardised_down) * surviving).sum()))
+        grid, weights = new_grid, new_weights
+
+    return tuple(rejected), tuple(futile)
 
 
 @lru_cache(maxsize=CACHE_SIZE)
@@ -92,54 +225,59 @@ def crossing_probability(
     boundary: tuple[float, ...],
     drift: float = 0.0,
     nodes: int = NODES,
+    fractions: tuple[float, ...] | None = None,
+    futility: tuple[float, ...] | None = None,
 ) -> tuple[float, ...]:
-    """Cumulative probability of having crossed the boundary by each look.
-
-    The Armitage-McPherson-Rowe recursion. Increments are independent with mean ``drift`` and unit
-    variance, so the running sum after ``k`` looks is normal with mean ``k * drift`` and variance
-    ``k``, and the test continues while the standardised statistic stays inside ``boundary[k]``. The
-    density of the sum restricted to the continuation region is carried forward look by look, which
-    is the only way to get the joint probability right: the looks are not independent, because each
-    one contains all the data of the ones before it.
+    """Cumulative probability of having rejected by each look.
 
     Args:
-        boundary: Critical value on the standardised statistic at each look, one per look. Equal
-            information between looks is assumed.
-        drift: Mean of each increment, in standard errors of a single look. Zero is the null.
+        boundary: Critical value on the standardised statistic at each look, one per look.
+        drift: Mean increment per unit of information. Zero is the null; ``ncp / sqrt(looks)`` is an
+            alternative whose final statistic has noncentrality ``ncp``.
         nodes: Gauss-Legendre nodes per look.
+        fractions: Share of the total information available at each look, increasing and ending at
+            one. ``None`` means evenly spaced, which is what wave 3's boundaries assume.
+        futility: Optional lower boundary. Supplying one makes the test one-sided in the efficacy
+            direction - see :func:`spending_boundary` for why that is the right pairing.
 
     Returns:
         The cumulative rejection probability after each look. The last entry is the overall size of
-        the procedure under ``drift``, which is its false-positive rate when ``drift`` is zero and
-        its power otherwise.
+        the procedure under ``drift``: its false-positive rate when ``drift`` is zero, its power
+        otherwise. With a futility boundary it is the probability of rejecting *and not having
+        stopped for futility first*, which is what a procedure with both boundaries delivers.
 
     Raises:
-        ValueError: If the boundary is empty, longer than :data:`MAX_LOOKS`, or non-positive
-            anywhere.
+        ValueError: If the boundary is empty, longer than :data:`MAX_LOOKS`, non-positive anywhere,
+            or if the fractions or the futility boundary do not match it.
     """
-    _validate(len(boundary))
-    if any(limit <= 0.0 for limit in boundary):
-        raise ValueError("every critical value must be positive")
+    return _recursion(boundary, drift, nodes, fractions, futility)[0]
 
-    limits = [boundary[index] * np.sqrt(index + 1) for index in range(len(boundary))]
-    abscissa, quadrature = np.polynomial.legendre.leggauss(nodes)
 
-    grid = limits[0] * abscissa
-    weights = limits[0] * quadrature
-    density = stats.norm.pdf(grid - drift)
-    cumulative = [1.0 - float(weights @ density)]
+@lru_cache(maxsize=CACHE_SIZE)
+def futility_probability(
+    boundary: tuple[float, ...],
+    futility: tuple[float, ...],
+    drift: float = 0.0,
+    nodes: int = NODES,
+    fractions: tuple[float, ...] | None = None,
+) -> tuple[float, ...]:
+    """Cumulative probability of having stopped for futility by each look.
 
-    for index in range(1, len(boundary)):
-        new_grid = limits[index] * abscissa
-        new_weights = limits[index] * quadrature
-        # The density of the sum at this look is the previous one convolved with a single increment,
-        # integrated only over the region where the test had not already stopped.
-        kernel = stats.norm.pdf(new_grid[:, None] - grid[None, :] - drift)
-        density = kernel @ (weights * density)
-        grid, weights = new_grid, new_weights
-        cumulative.append(1.0 - float(weights @ density))
+    Under the null this is mostly good news - the test ends early on a channel that is doing
+    nothing. Under the alternative it is the power the futility bound costs, which is the number
+    that decides whether the bound is worth having.
 
-    return tuple(cumulative)
+    Args:
+        boundary: The efficacy boundary.
+        futility: The futility boundary, one bound per look.
+        drift: Mean increment per unit of information.
+        nodes: Gauss-Legendre nodes per look.
+        fractions: Information fraction at each look.
+
+    Returns:
+        The cumulative probability of having stopped for futility after each look.
+    """
+    return _recursion(boundary, drift, nodes, fractions, futility)[1]
 
 
 def fixed_boundary(looks: int, alpha: float = DEFAULT_ALPHA) -> tuple[float, ...]:
@@ -213,6 +351,134 @@ def obrien_fleming(looks: int, alpha: float = DEFAULT_ALPHA) -> tuple[float, ...
         )
     )
     return tuple(constant * float(np.sqrt(looks / (index + 1))) for index in range(looks))
+
+
+#: Spending functions available to :func:`spending_boundary`. ``"obrien-fleming"`` and ``"pocock"``
+#: are the Lan-DeMets functions whose boundaries approximate the two classical shapes; ``"power"``
+#: is the family ``alpha * t ** rho``, which interpolates between them and is exposed so that the
+#: shape is a dial rather than a choice between two names.
+SPENDING = ("obrien-fleming", "pocock", "power")
+
+#: A bound standing in for "this look cannot stop the test". Large enough that no path reaches it,
+#: small enough to keep the quadrature grid sane.
+UNREACHABLE = 50.0
+
+#: Smallest share of the total information a single look may add.
+#:
+#: Not a convention - a measured limit of the method. The convolution kernel between two looks has
+#: standard deviation equal to the square root of the information they are apart, so as that gap
+#: shrinks the kernel narrows towards a spike that quadrature over a wide continuation region cannot
+#: represent. Measured on a two-look test at the default node count, the error rate is smooth and
+#: correct down to a gap of 2e-04 of the information and then collapses: at 1e-04 it is wrong by
+#: 9e-03 and in the wrong direction, and at 1e-05 it returns -1.17, which is not a probability. The
+#: floor here sits five times above the last good value, and it is generous in practice - reading a
+#: thirteen-week test daily puts each look 0.011 apart, eleven times the floor.
+MIN_INCREMENT = 1e-3
+
+SCHEDULE_COLUMNS = (
+    "look",
+    "information",
+    "alpha_spent",
+    "alpha_this_look",
+    "efficacy",
+    "nominal_alpha",
+    "futility",
+    "beta_spent",
+)
+
+
+def alpha_spent(
+    fraction: float,
+    alpha: float = DEFAULT_ALPHA,
+    family: str = "obrien-fleming",
+    rho: float = 3.0,
+) -> float:
+    """How much of the error rate a spending function has committed by information ``fraction``.
+
+    The Lan-DeMets insight, which is what makes a real monitoring plan possible: a boundary does not
+    have to be chosen in advance for a fixed number of equally spaced looks. Commit instead to a
+    function saying how much of the error rate may be spent by each point in the accumulation of
+    information, and the boundary at each look follows from what has already been spent. The number
+    and timing of the looks then do not have to be known when the test starts - which is the
+    situation everybody is actually in.
+
+    Args:
+        fraction: Share of the total information, in ``(0, 1]``.
+        alpha: Total error rate to spend.
+        family: One of :data:`SPENDING`.
+        rho: Exponent for the power family. Three is roughly O'Brien-Fleming-like, one is a linear
+            spend that is more aggressive than Pocock.
+
+    Returns:
+        Cumulative error rate spent by ``fraction``.
+
+    Raises:
+        ValueError: If the fraction is outside ``(0, 1]``, or the family is unknown.
+    """
+    if not 0.0 < fraction <= 1.0:
+        raise ValueError(f"an information fraction lies in (0, 1], got {fraction}")
+    if family == "obrien-fleming":
+        # The Lan-DeMets function whose boundary approximates O'Brien and Fleming's: it spends
+        # almost nothing early and nearly everything at the end.
+        return float(2.0 * stats.norm.sf(stats.norm.isf(alpha / 2.0) / math.sqrt(fraction)))
+    if family == "pocock":
+        return float(alpha * math.log(1.0 + (math.e - 1.0) * fraction))
+    if family == "power":
+        if rho <= 0:
+            raise ValueError(f"the power family needs a positive exponent, got {rho}")
+        return float(alpha * fraction**rho)
+    raise ValueError(f"unknown spending function {family!r}; the families are {SPENDING}")
+
+
+@lru_cache(maxsize=CACHE_SIZE)
+def spending_boundary(
+    fractions: tuple[float, ...],
+    alpha: float = DEFAULT_ALPHA,
+    family: str = "obrien-fleming",
+    rho: float = 3.0,
+) -> tuple[float, ...]:
+    """The one-sided efficacy boundary implied by a spending function.
+
+    Solved look by look: at each one, the critical value is whatever makes the cumulative
+    probability of having rejected equal the error rate the function says may have been spent by
+    then, *given the boundaries already fixed at the earlier looks*. That sequential construction is
+    what lets the looks be unequally spaced.
+
+    One-sided, unlike wave 3's boundaries, because this is the form that pairs with a futility
+    bound: a holdout asks whether the channel helps, and the region where it appears to hurt is
+    where futility belongs rather than where a rejection belongs. A one-sided ``alpha`` of 0.025 is
+    the comparable setting to a two-sided 0.05.
+
+    Args:
+        fractions: Information fraction at each look, increasing and ending at one.
+        alpha: One-sided error rate.
+        family: One of :data:`SPENDING`.
+        rho: Exponent for the power family.
+
+    Returns:
+        The critical value at each look.
+    """
+    looks = len(fractions)
+    shares = _checked_fractions(fractions, looks)
+    boundary: list[float] = []
+    for index in range(looks):
+        target = alpha_spent(shares[index], alpha, family, rho)
+
+        def spent_with(value: float, index: int = index) -> float:
+            candidate = tuple([*boundary, value] + [UNREACHABLE] * (looks - index - 1))
+            futility = (-UNREACHABLE,) * looks
+            return crossing_probability(candidate, fractions=shares, futility=futility)[index]
+
+        # The bracket runs from a bound nothing can fail to cross to one nothing can reach. The
+        # lower end is a small positive number rather than zero, because a critical value of zero
+        # rejects half the paths at the first look and is not a boundary.
+        def shortfall(value: float, target: float = target) -> float:
+            return spent_with(value) - target
+
+        boundary.append(
+            float(optimize.brentq(shortfall, 1e-9, UNREACHABLE)) if target > 0.0 else UNREACHABLE
+        )
+    return tuple(boundary)
 
 
 def nominal_alpha(boundary: tuple[float, ...]) -> tuple[float, ...]:
@@ -289,19 +555,117 @@ def information_inflation(
     return (ncp_for_power(boundary, target) / fixed) ** 2
 
 
-def expected_looks(boundary: tuple[float, ...], ncp: float) -> float:
+def expected_looks(
+    boundary: tuple[float, ...],
+    ncp: float,
+    futility: tuple[float, ...] | None = None,
+    fractions: tuple[float, ...] | None = None,
+) -> float:
     """Average number of looks before the test stops, counting the last one if it never does.
 
     The other half of the trade: a boundary that costs more information can still run for less time,
-    because most of the time it stops before using all of it.
+    because most of the time it stops before using all of it. With a futility boundary the test can
+    also end by giving up, which is what shortens it when the channel is doing nothing.
     """
-    cumulative = crossing_probability(boundary, drift=ncp / float(np.sqrt(len(boundary))))
+    drift = ncp / float(np.sqrt(len(boundary)))
+    rejected = crossing_probability(boundary, drift=drift, fractions=fractions, futility=futility)
+    abandoned = (
+        futility_probability(boundary, futility, drift=drift, fractions=fractions)
+        if futility is not None
+        else (0.0,) * len(boundary)
+    )
     total = 0.0
     previous = 0.0
-    for index, value in enumerate(cumulative):
-        total += (index + 1) * (value - previous)
-        previous = value
+    for index, (up, down) in enumerate(zip(rejected, abandoned, strict=True)):
+        stopped = up + down
+        total += (index + 1) * (stopped - previous)
+        previous = stopped
     return total + len(boundary) * (1.0 - previous)
+
+
+def beta_spent(
+    fraction: float,
+    beta: float,
+    family: str = "obrien-fleming",
+    rho: float = 3.0,
+) -> float:
+    """How much of the type II error a futility schedule has committed by ``fraction``.
+
+    The same spending idea pointed at the other error. A conservative family spends almost none of
+    it early, which means the test is not abandoned in week two on a bad first draw.
+    """
+    return alpha_spent(fraction, beta, family, rho)
+
+
+@lru_cache(maxsize=CACHE_SIZE)
+def futility_boundary(
+    boundary: tuple[float, ...],
+    ncp: float,
+    fractions: tuple[float, ...] | None = None,
+    beta: float = 1.0 - DEFAULT_POWER,
+    family: str = "obrien-fleming",
+    rho: float = 3.0,
+) -> tuple[float, ...]:
+    """A lower boundary that ends a test which is not going to succeed.
+
+    Solved by beta spending under the alternative ``ncp``: at each look, the bound is whatever makes
+    the cumulative probability of having abandoned the test equal the type II error the schedule
+    says may have been spent by then. The final bound is set equal to the efficacy bound, because a
+    test that reaches its last look without rejecting has failed and there is nothing left to
+    continue into.
+
+    What this buys is calendar, not conversions - and that is worth stating plainly, because the
+    roadmap of this repository once claimed the opposite. Wave 2 showed the holdout's cost in
+    conversions is the held-out population times the channel's real lift, so a channel doing
+    nothing costs nothing to hold out. A futility bound fires precisely when the effect looks
+    small, which is where the conversion cost is already near zero. What it saves is the weeks, the
+    regions held back from a channel nobody can act on yet, and the decision that cannot be taken
+    while the test runs.
+
+    Args:
+        boundary: The efficacy boundary this pairs with.
+        ncp: Noncentrality of the alternative the test is powered for, at the final look.
+        fractions: Information fraction at each look.
+        beta: Total type II error to spend. The default is one minus :data:`DEFAULT_POWER`.
+        family: One of :data:`SPENDING`.
+        rho: Exponent for the power family.
+
+    Returns:
+        The futility bound at each look, on the standardised statistic. Values are typically
+        negative early - no plausible first look should end a test - and rise to meet the efficacy
+        bound.
+
+    Raises:
+        ValueError: If the alternative is not positive, since a futility bound is defined against an
+            effect worth detecting.
+    """
+    if ncp <= 0:
+        raise ValueError(f"a futility bound is defined against a real alternative, got ncp {ncp}")
+    looks = len(boundary)
+    shares = _checked_fractions(fractions, looks)
+    drift = ncp / math.sqrt(looks)
+    bounds: list[float] = []
+    for index in range(looks - 1):
+        target = beta_spent(shares[index], beta, family, rho)
+
+        def abandoned(value: float, index: int = index) -> float:
+            candidate = tuple([*bounds, value] + [-UNREACHABLE] * (looks - index - 1))
+            return futility_probability(boundary, candidate, drift=drift, fractions=shares)[index]
+
+        def shortfall(value: float, target: float = target) -> float:
+            return abandoned(value) - target
+
+        # The bracket spans a bound nothing can fall below up to just under the efficacy bound.
+        # Just under, not at: a futility bound equal to the efficacy bound leaves no continuation
+        # region at all, which is a design error rather than a root.
+        ceiling = boundary[index] - 1e-6
+        bounds.append(
+            float(optimize.brentq(shortfall, -UNREACHABLE, ceiling))
+            if target > 0.0
+            else -UNREACHABLE
+        )
+    bounds.append(boundary[-1])
+    return tuple(bounds)
 
 
 @dataclass(frozen=True)
@@ -357,6 +721,214 @@ class SequentialPlan:
             f"{inflation - 1.0:+.1%} information, stops after "
             f"{expected_looks(self.boundary, needed):.2f} looks on average"
         )
+
+
+@dataclass(frozen=True)
+class MonitoringPlan:
+    """A full monitoring plan: when to look, when to stop for success, when to give up.
+
+    Every plan here is one-sided in the efficacy direction, and a plan that cannot give up carries
+    a futility bound of ``-UNREACHABLE`` rather than ``None``. That is not decoration. In
+    :func:`crossing_probability`, ``futility=None`` means the two-sided test wave 3 is built on, so
+    a plan storing ``None`` for "no futility" reported an error rate of 0.0500 for a boundary solved
+    to spend 0.025 - which is what the first version of this class did, and what
+    :attr:`can_abandon` now exists to express instead.
+
+    Attributes:
+        fractions: Information fraction at each look.
+        efficacy: Critical value at each look, one-sided.
+        futility: Lower bound at each look. Unreachable bounds mean the test can only stop for
+            success.
+        alpha: One-sided error rate the efficacy boundary was built to spend.
+        ncp: The alternative the plan is powered against, at the final look.
+    """
+
+    fractions: tuple[float, ...]
+    efficacy: tuple[float, ...]
+    futility: tuple[float, ...]
+    alpha: float
+    ncp: float
+
+    @property
+    def can_abandon(self) -> bool:
+        """Whether any look in this plan can end the test for futility."""
+        return any(bound > -UNREACHABLE for bound in self.futility)
+
+    @property
+    def looks(self) -> int:
+        """How many times the test is read."""
+        return len(self.efficacy)
+
+    @property
+    def drift(self) -> float:
+        """Mean increment per unit of information under the alternative."""
+        return self.ncp / math.sqrt(self.looks)
+
+    @property
+    def true_alpha(self) -> float:
+        """The plan's actual one-sided error rate.
+
+        Below :attr:`alpha` whenever a futility boundary is present, because the efficacy boundary
+        is solved as though the test could never be abandoned. That is the **non-binding**
+        convention and it is the point: a team that ignores the futility signal and keeps the test
+        running has not broken the error rate, because the error rate never counted on them obeying
+        it. The price of that insurance is the gap between the two numbers.
+        """
+        return crossing_probability(
+            self.efficacy, drift=0.0, fractions=self.fractions, futility=self.futility
+        )[-1]
+
+    @property
+    def power(self) -> float:
+        """Probability of rejecting under the alternative, with the plan as it stands."""
+        return crossing_probability(
+            self.efficacy, drift=self.drift, fractions=self.fractions, futility=self.futility
+        )[-1]
+
+    @property
+    def power_without_futility(self) -> float:
+        """What the power would be if the test were never abandoned."""
+        return crossing_probability(
+            self.efficacy,
+            drift=self.drift,
+            fractions=self.fractions,
+            futility=(-UNREACHABLE,) * self.looks,
+        )[-1]
+
+    @property
+    def abandoned_under_null(self) -> float:
+        """Probability of stopping for futility when nothing is happening.
+
+        The plan working: a channel with no effect should not consume the whole calendar. A plan
+        that cannot abandon returns essentially zero here without needing a special case, because
+        its bound is unreachable rather than absent.
+        """
+        return futility_probability(
+            self.efficacy, self.futility, drift=0.0, fractions=self.fractions
+        )[-1]
+
+    @property
+    def abandoned_under_alternative(self) -> float:
+        """Probability of abandoning a test that was going to succeed. The risk being bought."""
+        return futility_probability(
+            self.efficacy, self.futility, drift=self.drift, fractions=self.fractions
+        )[-1]
+
+    def expected_looks_under(self, ncp: float) -> float:
+        """Average number of looks before this plan stops, at a given effect."""
+        return expected_looks(self.efficacy, ncp, futility=self.futility, fractions=self.fractions)
+
+    def information_to_restore_power(self, target: float = DEFAULT_POWER) -> float:
+        """How much bigger the test must be to reach ``target`` power under this plan.
+
+        A multiplier on information, comparable with :func:`information_inflation`. One means the
+        plan already reaches the target; above one is what the futility bound costs in size, which
+        is the honest price to put next to the calendar it saves.
+
+        Raises:
+            ValueError: If the target is not above the plan's own size and below one.
+        """
+        if not self.true_alpha < target < 1.0:
+            raise ValueError(
+                f"power must be above this plan's own size ({self.true_alpha:.4f}) and below one, "
+                f"got {target}"
+            )
+
+        def achieved(ncp: float) -> float:
+            return crossing_probability(
+                self.efficacy,
+                drift=ncp / math.sqrt(self.looks),
+                fractions=self.fractions,
+                futility=self.futility,
+            )[-1]
+
+        needed = float(optimize.brentq(lambda ncp: achieved(ncp) - target, 1e-9, 40.0, xtol=1e-9))
+        return (needed / self.ncp) ** 2
+
+    def verdict(self) -> str:
+        """One line: what the plan costs and what it buys."""
+        if not self.can_abandon:
+            return (
+                f"{self.looks} looks, alpha {self.true_alpha:.4f}, power {self.power:.4f}, "
+                f"stops after {self.expected_looks_under(self.ncp):.2f} looks"
+            )
+        return (
+            f"{self.looks} looks with futility: alpha {self.true_alpha:.4f}, power "
+            f"{self.power:.4f} against {self.power_without_futility:.4f}, "
+            f"{self.expected_looks_under(0.0):.2f} looks on a channel doing nothing against "
+            f"{self.expected_looks_under(self.ncp):.2f} on one that works"
+        )
+
+
+def monitoring_plan(
+    fractions: tuple[float, ...],
+    ncp: float,
+    alpha: float = DEFAULT_ALPHA,
+    beta: float | None = 1.0 - DEFAULT_POWER,
+    family: str = "obrien-fleming",
+    rho: float = 3.0,
+) -> MonitoringPlan:
+    """Build a monitoring plan from a spending function and, optionally, a futility schedule.
+
+    Args:
+        fractions: Information fraction at each look, increasing and ending at one.
+        ncp: The alternative to power against, at the final look.
+        alpha: One-sided error rate.
+        beta: Type II error to spend on futility, or ``None`` for a plan that can only stop for
+            success.
+        family: One of :data:`SPENDING`, for both schedules.
+        rho: Exponent for the power family.
+
+    Returns:
+        A :class:`MonitoringPlan`.
+    """
+    efficacy = spending_boundary(fractions, alpha, family, rho)
+    futility = (
+        futility_boundary(efficacy, ncp, fractions, beta, family, rho)
+        if beta is not None
+        else (-UNREACHABLE,) * len(efficacy)
+    )
+    return MonitoringPlan(
+        fractions=_checked_fractions(fractions, len(efficacy)),
+        efficacy=efficacy,
+        futility=futility,
+        alpha=alpha,
+        ncp=ncp,
+    )
+
+
+def schedule(built: MonitoringPlan) -> pd.DataFrame:
+    """The plan as the table somebody has to be handed before the test starts.
+
+    Every row is a decision the team agreed to in advance: at this much information, reject above
+    this, give up below that. A monitoring plan that is not written down this way is not a plan - it
+    is a dashboard and a habit.
+
+    Args:
+        built: The plan.
+
+    Returns:
+        A frame with the columns in :data:`SCHEDULE_COLUMNS`.
+    """
+    nominals = nominal_alpha(built.efficacy)
+    spent = [alpha_spent(share, built.alpha) for share in built.fractions]
+    rows = []
+    for index, share in enumerate(built.fractions):
+        rows.append(
+            {
+                "look": index + 1,
+                "information": share,
+                "alpha_spent": spent[index],
+                "alpha_this_look": spent[index] - (spent[index - 1] if index else 0.0),
+                "efficacy": built.efficacy[index],
+                "nominal_alpha": nominals[index],
+                "futility": built.futility[index] if built.can_abandon else float("nan"),
+                "beta_spent": (
+                    beta_spent(share, 1.0 - DEFAULT_POWER) if built.can_abandon else float("nan")
+                ),
+            }
+        )
+    return pd.DataFrame(rows)[list(SCHEDULE_COLUMNS)]
 
 
 def plan(

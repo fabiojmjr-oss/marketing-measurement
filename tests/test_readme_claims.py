@@ -13,7 +13,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from scipy import stats
+from scipy import optimize, stats
 
 from mktlab.attribution import (
     credit,
@@ -27,13 +27,17 @@ from mktlab.attribution import (
 from mktlab.design import (
     DEFAULT_POWER,
     RULES,
+    UNREACHABLE,
     GeoDesign,
+    alpha_spent,
     crossing_probability,
+    equal_information,
     exaggeration,
     fixed_boundary,
     holdout_cost,
     inflated_alpha,
     information_inflation,
+    monitoring_plan,
     ncp_for_power,
     nominal_alpha,
     obrien_fleming,
@@ -42,6 +46,8 @@ from mktlab.design import (
     pocock,
     regions_for,
     retrospective,
+    schedule,
+    spending_boundary,
 )
 from mktlab.synth import AUDIENCE, CHANNELS, GEO, Dataset, mean_rate, true_rate_lift
 
@@ -685,3 +691,198 @@ def test_the_t_against_z_gap_the_readme_quotes_is_right() -> None:
     critical = float(stats.t.ppf(0.975, design.df))
     normal = float(stats.norm.ppf(0.975))
     assert critical / normal - 1.0 == pytest.approx(0.033, abs=5e-4)
+
+
+# --- Wave 4: monitoring, from src/mktlab/design/README-monitoring.md ---------------------------
+
+ONE_SIDED = 0.025
+
+
+def _shares() -> tuple[float, ...]:
+    return equal_information(LOOKS)
+
+
+def _never() -> tuple[float, ...]:
+    return (-UNREACHABLE,) * LOOKS
+
+
+def _design_effect() -> float:
+    """The alternative the published plan is powered for, re-derived rather than copied."""
+    efficacy = spending_boundary(_shares(), ONE_SIDED)
+    return float(
+        optimize.brentq(
+            lambda ncp: (
+                crossing_probability(
+                    efficacy, drift=ncp / LOOKS**0.5, fractions=_shares(), futility=_never()
+                )[-1]
+                - DEFAULT_POWER
+            ),
+            0.5,
+            20.0,
+            xtol=1e-12,
+        )
+    )
+
+
+def test_the_design_effect_the_monitoring_readme_quotes_is_right() -> None:
+    assert _design_effect() == pytest.approx(2.8591, abs=5e-5)
+
+
+def test_every_reading_schedule_spends_exactly_the_published_error_rate() -> None:
+    published = {
+        "weekly": (_shares(), 7.9965, 2.0981),
+        "monthly": ((4 / 13, 8 / 13, 1.0), 3.8751, 1.9835),
+        "late start": ((0.5, 0.75, 0.9, 1.0), 2.9626, 2.0731),
+        "read once": ((1.0,), 1.9600, 1.9600),
+    }
+    for label, (shares, first, last) in published.items():
+        boundary = spending_boundary(shares, ONE_SIDED)
+        assert boundary[0] == pytest.approx(first, abs=5e-5), label
+        assert boundary[-1] == pytest.approx(last, abs=5e-5), label
+        spent = crossing_probability(
+            boundary, fractions=shares, futility=(-UNREACHABLE,) * len(shares)
+        )[-1]
+        assert spent == pytest.approx(ONE_SIDED, abs=1e-9), label
+
+
+def test_the_approximation_table_against_the_exact_boundary_is_published_correctly() -> None:
+    approximate = spending_boundary(_shares(), ONE_SIDED)
+    exact = obrien_fleming(LOOKS, 2.0 * ONE_SIDED)
+    published = {
+        1: (7.9965, 7.5799, 1.0550),
+        2: (5.5954, 5.3598, 1.0440),
+        4: (3.8801, 3.7900, 1.0238),
+        7: (2.8881, 2.8649, 1.0081),
+        10: (2.4005, 2.3970, 1.0015),
+        12: (2.1858, 2.1881, 0.9990),
+        13: (2.0981, 2.1023, 0.9980),
+    }
+    for look, (spending, classical, ratio) in published.items():
+        index = look - 1
+        assert approximate[index] == pytest.approx(spending, abs=5e-5), look
+        assert exact[index] == pytest.approx(classical, abs=5e-5), look
+        assert approximate[index] / exact[index] == pytest.approx(ratio, abs=5e-5), look
+    ratios = [a / b for a, b in zip(approximate, exact, strict=True)]
+    assert ratios == sorted(ratios, reverse=True)
+
+
+def test_the_pocock_spending_gap_is_what_is_published() -> None:
+    assert pocock(LOOKS, 2.0 * ONE_SIDED)[0] == pytest.approx(2.6019, abs=5e-5)
+    loose = spending_boundary(_shares(), ONE_SIDED, "pocock")[0]
+    assert loose == pytest.approx(2.7366, abs=5e-5)
+    assert loose / pocock(LOOKS, 2.0 * ONE_SIDED)[0] - 1.0 == pytest.approx(0.052, abs=5e-4)
+
+
+def test_the_published_schedule_is_row_for_row_what_the_readme_prints() -> None:
+    built = monitoring_plan(_shares(), _design_effect(), alpha=ONE_SIDED)
+    table = schedule(built).set_index("look")
+    published = {
+        1: (0.0769, 0.000000, 7.9965, -3.6818, 0.000004),
+        3: (0.2308, 0.000003, 4.5216, -1.0694, 0.007636),
+        5: (0.3846, 0.000301, 3.4467, -0.0768, 0.038787),
+        6: (0.4615, 0.000969, 3.1308, 0.2630, 0.059242),
+        9: (0.6923, 0.007064, 2.5347, 1.0200, 0.123503),
+        13: (1.0000, 0.025000, 2.0981, 2.0981, 0.200000),
+    }
+    for look, (information, spent, efficacy, futility, beta) in published.items():
+        row = table.loc[look]
+        assert float(row["information"]) == pytest.approx(information, abs=5e-5), look
+        assert float(row["alpha_spent"]) == pytest.approx(spent, abs=5e-7), look
+        assert float(row["efficacy"]) == pytest.approx(efficacy, abs=5e-5), look
+        assert float(row["futility"]) == pytest.approx(futility, abs=5e-5), look
+        assert float(row["beta_spent"]) == pytest.approx(beta, abs=5e-7), look
+    # The two claims the table is read for: nothing ends the test in week one, and the last look
+    # ends it either way.
+    assert float(table.loc[1, "futility"]) < -3.0
+    assert float(table.loc[6, "futility"]) > 0.0
+    assert float(table.loc[13, "futility"]) == pytest.approx(float(table.loc[13, "efficacy"]))
+
+
+def test_the_cost_and_benefit_of_futility_are_published_correctly() -> None:
+    powered_for = _design_effect()
+    open_ended = monitoring_plan(_shares(), powered_for, alpha=ONE_SIDED, beta=None)
+    with_futility = monitoring_plan(_shares(), powered_for, alpha=ONE_SIDED)
+
+    assert open_ended.true_alpha == pytest.approx(0.025000, abs=5e-7)
+    assert with_futility.true_alpha == pytest.approx(0.022421, abs=5e-7)
+    assert open_ended.power == pytest.approx(0.800000, abs=5e-7)
+    assert with_futility.power == pytest.approx(0.765575, abs=5e-7)
+    assert open_ended.information_to_restore_power() == pytest.approx(1.000000, abs=5e-7)
+    assert with_futility.information_to_restore_power() == pytest.approx(1.088761, abs=5e-6)
+    assert open_ended.expected_looks_under(0.0) == pytest.approx(12.94, abs=5e-3)
+    assert with_futility.expected_looks_under(0.0) == pytest.approx(6.09, abs=5e-3)
+    assert open_ended.expected_looks_under(powered_for) == pytest.approx(9.83, abs=5e-3)
+    assert with_futility.expected_looks_under(powered_for) == pytest.approx(8.94, abs=5e-3)
+    assert with_futility.abandoned_under_null == pytest.approx(0.977579, abs=5e-7)
+    assert with_futility.abandoned_under_alternative == pytest.approx(0.234425, abs=5e-7)
+
+    # The prose figures: 8.9% more information, and the test cut in half on a dead channel.
+    assert with_futility.information_to_restore_power() - 1.0 == pytest.approx(0.089, abs=5e-4)
+    halved = with_futility.expected_looks_under(0.0) / open_ended.expected_looks_under(0.0)
+    assert halved == pytest.approx(0.47, abs=5e-3)
+
+
+def test_futility_saves_calendar_and_not_conversions() -> None:
+    """The claim that corrects this repository's own roadmap, as arithmetic.
+
+    A channel doing nothing costs nothing to hold out, so the case futility fires on is the case
+    where there was no conversion cost to save. What it saves there is weeks.
+    """
+    powered_for = _design_effect()
+    open_ended = monitoring_plan(_shares(), powered_for, alpha=ONE_SIDED, beta=None)
+    with_futility = monitoring_plan(_shares(), powered_for, alpha=ONE_SIDED)
+    design = _published_design()
+    per_week = design.holdout_geos * design.users_per_geo_week
+    email = next(profile for profile in CHANNELS if profile.channel == "email")
+
+    dead_without = open_ended.expected_looks_under(0.0)
+    dead_with = with_futility.expected_looks_under(0.0)
+    assert per_week * dead_without * 0.0 == 0.0
+    assert per_week * dead_with * 0.0 == 0.0
+    assert dead_without - dead_with == pytest.approx(6.85, abs=5e-3)
+
+    lift = true_rate_lift(email)
+    live_without = per_week * open_ended.expected_looks_under(powered_for) * lift
+    live_with = per_week * with_futility.expected_looks_under(powered_for) * lift
+    assert live_without == pytest.approx(1258.85, abs=5e-2)
+    assert live_with == pytest.approx(1143.81, abs=5e-2)
+    assert live_without - live_with == pytest.approx(115.0, abs=0.5)
+    assert holdout_cost(design, lift, AUDIENCE.value_per_conversion)[
+        "forgone_conversions"
+    ] == pytest.approx(1664.0)
+
+
+def test_the_spending_family_trades_power_for_calendar_monotonically() -> None:
+    powered_for = _design_effect()
+    published = {
+        ("obrien-fleming", 3.0): (0.000053, 7.9965, 0.765575, 6.09, 0.234425),
+        ("power", 3.0): (0.000728, 4.2360, 0.783266, 7.12, 0.216734),
+        ("power", 1.0): (0.007692, 2.8905, 0.713910, 5.27, 0.286090),
+        ("pocock", 3.0): (0.010610, 2.7366, 0.681486, 4.91, 0.318514),
+    }
+    for (family, rho), values in published.items():
+        spent, first, power_value, looks, abandoned = values
+        boundary = spending_boundary(_shares(), ONE_SIDED, family, rho)
+        built = monitoring_plan(_shares(), powered_for, alpha=ONE_SIDED, family=family, rho=rho)
+        assert alpha_spent(_shares()[3], ONE_SIDED, family, rho) == pytest.approx(
+            spent, abs=5e-7
+        ), family
+        assert boundary[0] == pytest.approx(first, abs=5e-5), family
+        assert built.power == pytest.approx(power_value, abs=5e-7), family
+        assert built.expected_looks_under(0.0) == pytest.approx(looks, abs=5e-3), family
+        assert built.abandoned_under_alternative == pytest.approx(abandoned, abs=5e-7), family
+
+    # Ordered by how early each schedule spends: sooner off a dead channel, less power, more
+    # winners abandoned. The ordering is the claim, not the individual figures.
+    order = [("pocock", 3.0), ("power", 1.0), ("obrien-fleming", 3.0), ("power", 3.0)]
+    plans = [
+        monitoring_plan(_shares(), powered_for, alpha=ONE_SIDED, family=family, rho=rho)
+        for family, rho in order
+    ]
+    assert [built.expected_looks_under(0.0) for built in plans] == sorted(
+        built.expected_looks_under(0.0) for built in plans
+    )
+    assert [built.power for built in plans] == sorted(built.power for built in plans)
+    assert [built.abandoned_under_alternative for built in plans] == sorted(
+        (built.abandoned_under_alternative for built in plans), reverse=True
+    )

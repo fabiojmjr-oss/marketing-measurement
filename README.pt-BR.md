@@ -90,12 +90,29 @@ Ele roda treze semanas num painel.
   reportado é **2,63 vezes** a verdade e 3,9% dos resultados que cruzam a linha apontam para o lado
   errado.
 
+## E o plano de leitura pode ser escrito
+
+As duas fronteiras supõem que as olhadas são igualmente espaçadas e conhecidas antes de o teste
+começar, e nenhuma consegue encerrar um teste que não vai dar em nada.
+
+- **Um cronograma de gasto de alfa corrige a primeira coisa.** Comprometa-se com quanto erro pode ser
+  gasto a cada ponto da acumulação de informação, e a fronteira decorre — de modo que treze leituras
+  semanais, três mensais, quatro começando na metade ou uma única no fim gastam **exatamente 0,025**,
+  e a última delas devolve 1,96.
+- **Uma fronteira de futilidade corrige a segunda, e seu preço é o primeiro custo honesto deste arco
+  pequeno o bastante para simplesmente pagar:** num canal que não faz nada o teste termina depois de
+  **seis** leituras semanais em vez de treze, por **8,9% mais informação** e uma **chance de 23,4% de
+  abandonar um teste que teria dado certo**.
+- **E ela economiza calendário, não conversões** — o que o roadmap deste repositório inverteu. Um canal
+  que não faz nada não custa nada para segurar, então o caso em que a futilidade dispara é o caso sem
+  custo de conversão a economizar. O que ela economiza são sete semanas e vinte regiões.
+
 ## Módulos
 
 | Módulo | O que decide |
 | --- | --- |
 | [`mktlab.attribution`](src/mktlab/attribution/README.md) | Quem leva o crédito sob seis modelos, o que um holdout geográfico diz em vez disso, e a diferença entre o ROAS e sua versão incremental. |
-| [`mktlab.design`](src/mktlab/design/README.md) | Se o teste vale ser rodado, e se ele está sendo lido do jeito para o qual foi dimensionado. Dois documentos: [dimensionamento](src/mktlab/design/README-sizing.md) — a precisão que ele terá, o menor **retorno** que consegue estabelecer, quanto custa se o canal funcionar, e o que um resultado nulo já descartou; e [leituras repetidas](src/mktlab/design/README-sequential.md) — o que uma olhada semanal faz com a taxa de erro, quanto custam as duas fronteiras honestas, e quanto uma parada antecipada infla o número que você reporta. |
+| [`mktlab.design`](src/mktlab/design/README.md) | Se o teste vale ser rodado, se está sendo lido do jeito para o qual foi dimensionado, e o que o plano de leitura deveria dizer. Três documentos: [dimensionamento](src/mktlab/design/README-sizing.md) — a precisão que ele terá, o menor **retorno** que consegue estabelecer, quanto custa se o canal funcionar, e o que um resultado nulo já descartou; [leituras repetidas](src/mktlab/design/README-sequential.md) — o que uma olhada semanal faz com a taxa de erro, quanto custam as duas fronteiras honestas, e quanto uma parada antecipada infla o número que você reporta; e [monitoramento](src/mktlab/design/README-monitoring.md) — um cronograma de gasto de alfa para olhadas que ninguém combinou antes, e uma fronteira de futilidade que encerra um teste que não vai dar em nada. |
 
 Todo README de módulo é bilíngue e traz uma seção **Premissas e limitações**, porque uma cifra sem
 suas premissas não é um resultado.
@@ -107,6 +124,7 @@ suas premissas não é um resultado.
 | [`examples/01_who_gets_the_credit.py`](examples/01_who_gets_the_credit.py) | Seis modelos de atribuição sobre uma mesma base de jornadas, a identidade de Shapley, as conversões que ninguém tocou, e o holdout que derruba os seis. |
 | [`examples/02_the_test_nobody_sized.py`](examples/02_the_test_nobody_sized.py) | O mesmo holdout, precificado antes de rodar: sua precisão, quais canais ele sempre iria resolver, o retorno que ele nunca conseguiria estabelecer, e quanto custou. |
 | [`examples/03_the_test_read_every_monday.py`](examples/03_the_test_read_every_monday.py) | O mesmo holdout outra vez, lido semanalmente em vez de uma só vez: a taxa de erro que isso custa, as duas fronteiras que corrigem, quanto custam em regiões, e a estimativa lisonjeira que nenhuma das duas corrige. |
+| [`examples/04_the_plan_nobody_wrote.py`](examples/04_the_plan_nobody_wrote.py) | O plano de monitoramento com o qual o holdout deveria ter chegado: a mesma taxa de erro gasta em quatro calendários de leitura diferentes, a fronteira de futilidade escrita semana a semana, e quanto custa o direito de desistir. |
 
 ## Instalar e rodar
 
@@ -117,12 +135,13 @@ make check-all   # o acima mais toda cifra documentada re-derivada
 python examples/01_who_gets_the_credit.py
 python examples/02_the_test_nobody_sized.py
 python examples/03_the_test_read_every_monday.py
+python examples/04_the_plan_nobody_wrote.py
 ```
 
 ## Como as afirmações são mantidas honestas
 
-**225 testes, 100% de cobertura de linhas e de ramos.** 185 deles rodam em segundos e liberam cada
-push. Os 40 restantes re-derivam, a partir do gerador, toda cifra citada em todo README deste
+**281 testes, 100% de cobertura de linhas e de ramos.** 232 deles rodam em segundos e liberam cada
+push. Os 49 restantes re-derivam, a partir do gerador, toda cifra citada em todo README deste
 repositório, e rodam todo script de exemplo. Uma mudança que mova um número publicado quebra o build
 em vez de deixar o texto silenciosamente errado.
 
