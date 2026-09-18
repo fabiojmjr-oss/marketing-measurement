@@ -61,17 +61,16 @@ So the standard error closes analytically. Against the five panels wave 1 actual
 
 | Channel | True lift | Predicted SE | Observed SE | Ratio | Power at the truth | Resolved |
 | --- | --- | --- | --- | --- | --- | --- |
-| social-pago | 0.0270 | 0.000797 | 0.000786 | 0.9868 | 1.0000 | yes |
-| email | 0.0032 | 0.000820 | 0.001106 | **1.3476** | 0.9671 | yes |
-| busca-generica | 0.0075 | 0.000816 | 0.000745 | 0.9125 | 1.0000 | yes |
-| retargeting | 0.0000 | 0.000823 | 0.000849 | 1.0307 | 0.0500 | no |
-| busca-marca | 0.0000 | 0.000823 | 0.000857 | 1.0407 | 0.0500 | no |
+| social-pago | 0.0270 | 0.000797 | 0.000834 | 1.0461 | 1.0000 | yes |
+| email | 0.0032 | 0.000820 | 0.000870 | 1.0608 | 0.9671 | yes |
+| busca-generica | 0.0075 | 0.000816 | 0.000865 | 1.0590 | 1.0000 | yes |
+| retargeting | 0.0000 | 0.000823 | 0.000689 | **0.8366** | 0.0500 | no |
+| busca-marca | 0.0000 | 0.000823 | 0.000968 | **1.1754** | 0.0500 | no |
 
-A standard error estimated from forty regions is itself noisy by about 11.5%, so ratios in this
-range are the prediction working rather than failing — email's 1.35 is a shade over two of those
-standard deviations, and it is the whole reason email's observed p-value came in at 0.0131 rather
-than at the 0.001 its power implied. **The precision of a geo test is a design decision, not
-something discovered afterwards.**
+A standard error estimated from forty regions is itself noisy by about 11.5%, so every ratio here is
+within a standard deviation and a half of the prediction — the two extremes, 0.84 and 1.18, are the
+sampling noise of a variance estimate rather than a failure of the algebra. **The precision of a geo
+test is a design decision, not something discovered afterwards.**
 
 The control case matters more than the table: `design.power(0.0)` returns **0.05000000**, the
 significance level, exactly. A power function that does not return alpha when nothing is happening
@@ -121,19 +120,25 @@ five rows. The decision-relevant figure differs by a factor of nine.
 
 | Channel | iROAS | Interval | Rules out returns above | Design's detectable floor | Design big enough? |
 | --- | --- | --- | --- | --- | --- |
-| retargeting | 0.3773 | −0.6539 to 1.4085 | **1.4085** | 1.4166 | **no** |
-| busca-marca | −0.2892 | −0.9844 to 0.4060 | **0.4060** | 0.9444 | **no** |
+| retargeting | 0.2377 | −0.5991 to 1.0745 | **1.0745** | 1.4166 | **no** |
+| busca-marca | 0.5369 | −0.2543 to 1.3282 | **1.3282** | 0.9444 | **yes** |
 
 **"Not significant" is not the end of the sentence.** The retargeting holdout rules out any return
-above 1.41 — that is a fact about the channel, it cost thirteen weeks, and a report that quotes the
+above 1.07 — that is a fact about the channel, it cost thirteen weeks, and a report that quotes the
 p-value alone throws it away.
 
-Read the last two columns of that row together, though. The test ruled out returns above 1.4085, and
-the design could not have established any return below 1.4166. Those two numbers are the same size
-by construction and always will be: the interval's ceiling is the estimate plus *t* times the
-standard error, and the detectable floor is *t* plus the power quantile times the same standard
-error. **A null holdout on a small channel buys an upper bound and cannot buy anything else** — so
-if the upper bound is not itself the decision, the test was the wrong instrument before it started.
+But the two channels differ in a way no p-value shows, and it is in the last two columns.
+**busca-marca's null is informative**: the design could establish returns down to 0.94, and the test
+came back ruling out everything above 1.33, so the range the answer sits in is a range this test
+could resolve. **retargeting's null is not**: the test ruled out returns above 1.07 while the design
+could not have established any return below 1.42. There was no return this test could both miss and
+detect — the bound it produced is the only thing it was ever going to produce.
+
+Those two numbers are always of the same size, which is why the comparison is so close: the
+interval's ceiling is the estimate plus *t* times the standard error, and the detectable floor is
+*t* plus the power quantile times the same standard error. **A null holdout on a small channel buys
+an upper bound and little else** — so if the upper bound is not itself the decision, the test was
+the wrong instrument before it started.
 
 ## Result 5: the holdout is expensive exactly when the answer is "keep spending"
 
@@ -292,17 +297,16 @@ Então o erro-padrão fecha analiticamente. Contra os cinco painéis que a onda 
 
 | Canal | Lift real | EP previsto | EP observado | Razão | Poder na verdade | Resolvido |
 | --- | --- | --- | --- | --- | --- | --- |
-| social-pago | 0,0270 | 0,000797 | 0,000786 | 0,9868 | 1,0000 | sim |
-| email | 0,0032 | 0,000820 | 0,001106 | **1,3476** | 0,9671 | sim |
-| busca-generica | 0,0075 | 0,000816 | 0,000745 | 0,9125 | 1,0000 | sim |
-| retargeting | 0,0000 | 0,000823 | 0,000849 | 1,0307 | 0,0500 | não |
-| busca-marca | 0,0000 | 0,000823 | 0,000857 | 1,0407 | 0,0500 | não |
+| social-pago | 0,0270 | 0,000797 | 0,000834 | 1,0461 | 1,0000 | sim |
+| email | 0,0032 | 0,000820 | 0,000870 | 1,0608 | 0,9671 | sim |
+| busca-generica | 0,0075 | 0,000816 | 0,000865 | 1,0590 | 1,0000 | sim |
+| retargeting | 0,0000 | 0,000823 | 0,000689 | **0,8366** | 0,0500 | não |
+| busca-marca | 0,0000 | 0,000823 | 0,000968 | **1,1754** | 0,0500 | não |
 
 Um erro-padrão estimado a partir de quarenta regiões é ele mesmo ruidoso em cerca de 11,5%, então
-razões nessa faixa são a previsão funcionando e não falhando — o 1,35 do email está pouco acima de
-dois desses desvios, e é toda a razão pela qual o p-valor observado do email saiu 0,0131 em vez do
-0,001 que seu poder implicava. **A precisão de um teste geográfico é uma decisão de desenho, não
-algo descoberto depois.**
+toda razão aqui está dentro de um desvio e meio da previsão — os dois extremos, 0,84 e 1,18, são o
+ruído amostral de uma estimativa de variância, não uma falha da álgebra. **A precisão de um teste
+geográfico é uma decisão de desenho, não algo descoberto depois.**
 
 O caso de controle importa mais que a tabela: `design.power(0.0)` devolve **0,05000000**, o nível de
 significância, exatamente. Uma função de poder que não devolve alfa quando nada está acontecendo não
@@ -352,19 +356,26 @@ cifra relevante para a decisão difere por um fator de nove.
 
 | Canal | iROAS | Intervalo | Descarta retornos acima de | Piso detectável do desenho | Desenho suficiente? |
 | --- | --- | --- | --- | --- | --- |
-| retargeting | 0,3773 | −0,6539 a 1,4085 | **1,4085** | 1,4166 | **não** |
-| busca-marca | −0,2892 | −0,9844 a 0,4060 | **0,4060** | 0,9444 | **não** |
+| retargeting | 0,2377 | −0,5991 a 1,0745 | **1,0745** | 1,4166 | **não** |
+| busca-marca | 0,5369 | −0,2543 a 1,3282 | **1,3282** | 0,9444 | **sim** |
 
 **"Não significante" não é o fim da frase.** O holdout de retargeting descarta qualquer retorno acima
-de 1,41 — isso é um fato sobre o canal, custou treze semanas, e um relatório que cita só o p-valor
+de 1,07 — isso é um fato sobre o canal, custou treze semanas, e um relatório que cita só o p-valor
 joga fora esse fato.
 
-Mas leia as duas últimas colunas dessa linha juntas. O teste descartou retornos acima de 1,4085, e o
-desenho não conseguiria estabelecer nenhum retorno abaixo de 1,4166. Esses dois números têm o mesmo
-tamanho por construção e sempre terão: o teto do intervalo é a estimativa mais *t* vezes o
-erro-padrão, e o piso detectável é *t* mais o quantil de poder vezes o mesmo erro-padrão. **Um
-holdout nulo num canal pequeno compra um limite superior e não consegue comprar mais nada** — então,
-se o limite superior não é em si a decisão, o teste era o instrumento errado antes de começar.
+Mas os dois canais diferem de um jeito que nenhum p-valor mostra, e está nas duas últimas colunas.
+**O nulo da busca de marca é informativo**: o desenho conseguia estabelecer retornos até 0,94, e o
+teste voltou descartando tudo acima de 1,33 — ou seja, a faixa onde a resposta está é uma faixa que
+este teste conseguia resolver. **O nulo do retargeting não é**: o teste descartou retornos acima de
+1,07 enquanto o desenho não conseguiria estabelecer nenhum retorno abaixo de 1,42. Não havia retorno
+que este teste pudesse ao mesmo tempo perder e detectar — o limite que ele produziu era a única coisa
+que ele iria produzir.
+
+Esses dois números têm sempre o mesmo tamanho, e é por isso que a comparação fica tão próxima: o teto
+do intervalo é a estimativa mais *t* vezes o erro-padrão, e o piso detectável é *t* mais o quantil de
+poder vezes o mesmo erro-padrão. **Um holdout nulo num canal pequeno compra um limite superior e
+pouco mais** — então, se o limite superior não é em si a decisão, o teste era o instrumento errado
+antes de começar.
 
 ## Resultado 5: o holdout é caro exatamente quando a resposta é "continue investindo"
 

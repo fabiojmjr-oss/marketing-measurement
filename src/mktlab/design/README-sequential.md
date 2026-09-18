@@ -34,7 +34,7 @@ peeking_table(13)  # the four rules, priced side by side
 plan("obrien-fleming", 13).verdict()
 # "obrien-fleming: 13 looks holding alpha at 0.0500, +4.3% information, stops after 9.79 looks..."
 
-exaggeration(plan("naive", 13).boundary, ncp=2.477)["ratio"]  # 1.7273
+exaggeration(plan("naive", 13).boundary, ncp=2.477)["ratio"]  # 1.7308
 ```
 
 ## Result 1: the error rate against the number of glances
@@ -111,12 +111,12 @@ at equal power rather than at equal design:
 
 | Rule | Power | Reported ÷ true | Stops after | Right direction |
 | --- | --- | --- | --- | --- |
-| read once | 0.7991 | **1.1241** | 1.00 | 1.0000 |
-| O'Brien-Fleming | 0.8013 | 1.2676 | 9.79 | 1.0000 |
-| Pocock | 0.8012 | 1.4794 | 7.82 | 0.9996 |
-| naive weekly | 0.8006 | **1.7273** | 7.02 | 0.9927 |
+| read once | 0.8011 | **1.1250** | 1.00 | 1.0000 |
+| O'Brien-Fleming | 0.8006 | 1.2695 | 9.79 | 1.0000 |
+| Pocock | 0.8011 | 1.4815 | 7.82 | 0.9997 |
+| naive weekly | 0.8007 | **1.7308** | 7.01 | 0.9926 |
 
-**Reading once already overstates a real effect by 12%**, because what gets published is conditional
+**Reading once already overstates a real effect by 13%**, because what gets published is conditional
 on significance and significance selects the favourable draws. Early stopping makes it worse in
 proportion to how early you are allowed to stop: 27% under O'Brien-Fleming, 48% under Pocock, **73%
 under the rule actually in use.**
@@ -126,18 +126,18 @@ stop early reports a flattering number, and a valid boundary repairs the false-p
 Repairing the estimate is a different instrument, and the cheapest version of it is not stopping
 early. Note the direction, too: it is the same direction as every other finding in this repository.
 
-## Result 5: and on an underpowered test it is not 73%, it is 164%
+## Result 5: and on an underpowered test it is not 73%, it is 163%
 
 Wave 2 showed the holdout could establish nothing below a return of 4.25 on email, against a truth
 of 5.76 — a test close to the edge of its own power. At 30% power:
 
 | Rule | Power | Reported ÷ true | Stops after | Right direction |
 | --- | --- | --- | --- | --- |
-| read once | 0.2982 | **1.8053** | 1.00 | 0.9989 |
-| naive weekly | 0.4769 | **2.6352** | 9.57 | **0.9618** |
+| read once | 0.3008 | **1.8036** | 1.00 | 0.9987 |
+| naive weekly | 0.4780 | **2.6344** | 9.55 | **0.9614** |
 
-Read once, the published effect is already **1.81 times** the truth. Read weekly, **2.64 times** —
-and **3.8%** of the results that clear the line point the wrong way entirely, so the report does not
+Read once, the published effect is already **1.80 times** the truth. Read weekly, **2.63 times** —
+and **3.9%** of the results that clear the line point the wrong way entirely, so the report does not
 merely exaggerate the channel, it occasionally reverses it.
 
 **An underpowered test is not a weak test. It is a test whose successes are mostly noise**, and
@@ -232,7 +232,7 @@ peeking_table(13)  # as quatro regras, precificadas lado a lado
 plan("obrien-fleming", 13).verdict()
 # "obrien-fleming: 13 looks holding alpha at 0.0500, +4.3% information, stops after 9.79 looks..."
 
-exaggeration(plan("naive", 13).boundary, ncp=2.477)["ratio"]  # 1,7273
+exaggeration(plan("naive", 13).boundary, ncp=2.477)["ratio"]  # 1,7308
 ```
 
 ## Resultado 1: a taxa de erro contra o número de olhadas
@@ -309,12 +309,12 @@ desenho igual:
 
 | Regra | Poder | Reportado ÷ real | Para após | Direção certa |
 | --- | --- | --- | --- | --- |
-| ler uma vez | 0,7991 | **1,1241** | 1,00 | 1,0000 |
-| O'Brien-Fleming | 0,8013 | 1,2676 | 9,79 | 1,0000 |
-| Pocock | 0,8012 | 1,4794 | 7,82 | 0,9996 |
-| ingênua semanal | 0,8006 | **1,7273** | 7,02 | 0,9927 |
+| ler uma vez | 0,8011 | **1,1250** | 1,00 | 1,0000 |
+| O'Brien-Fleming | 0,8006 | 1,2695 | 9,79 | 1,0000 |
+| Pocock | 0,8011 | 1,4815 | 7,82 | 0,9997 |
+| ingênua semanal | 0,8007 | **1,7308** | 7,01 | 0,9926 |
 
-**Ler uma vez já superestima um efeito real em 12%**, porque o que é publicado é condicionado à
+**Ler uma vez já superestima um efeito real em 13%**, porque o que é publicado é condicionado à
 significância e a significância seleciona os sorteios favoráveis. Parar antes piora isso na proporção
 de quão antes se pode parar: 27% com O'Brien-Fleming, 48% com Pocock, **73% com a regra efetivamente
 em uso.**
@@ -324,18 +324,18 @@ parar antes reporta um número lisonjeiro, e uma fronteira válida corrige **ape
 falso-positivo. Corrigir a estimativa é outro instrumento, e a versão mais barata dele é não parar
 antes. Repare também na direção: é a mesma direção de todo outro achado deste repositório.
 
-## Resultado 5: e num teste com pouco poder não é 73%, é 164%
+## Resultado 5: e num teste com pouco poder não é 73%, é 163%
 
 A onda 2 mostrou que o holdout não conseguia estabelecer nada abaixo de um retorno de 4,25 no email,
 contra uma verdade de 5,76 — um teste perto do limite do próprio poder. A 30% de poder:
 
 | Regra | Poder | Reportado ÷ real | Para após | Direção certa |
 | --- | --- | --- | --- | --- |
-| ler uma vez | 0,2982 | **1,8053** | 1,00 | 0,9989 |
-| ingênua semanal | 0,4769 | **2,6352** | 9,57 | **0,9618** |
+| ler uma vez | 0,3008 | **1,8036** | 1,00 | 0,9987 |
+| ingênua semanal | 0,4780 | **2,6344** | 9,55 | **0,9614** |
 
-Lido uma vez, o efeito publicado já é **1,81 vez** a verdade. Lido semanalmente, **2,64 vezes** — e
-**3,8%** dos resultados que cruzam a linha apontam para o lado errado, então o relatório não apenas
+Lido uma vez, o efeito publicado já é **1,80 vez** a verdade. Lido semanalmente, **2,63 vezes** — e
+**3,9%** dos resultados que cruzam a linha apontam para o lado errado, então o relatório não apenas
 exagera o canal, ele ocasionalmente inverte o canal.
 
 **Um teste com pouco poder não é um teste fraco. É um teste cujos sucessos são em boa parte ruído**,

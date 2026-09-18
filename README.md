@@ -28,27 +28,29 @@ were already going to convert. Last-click credit against what a geo holdout esta
 
 | Channel | True effect | Last-click share | ROAS | iROAS | Holdout established it? |
 | --- | --- | --- | --- | --- | --- |
-| email | +0.010 | 0.1605 | **25.16** | 5.2165 | yes |
-| retargeting | **0.000** | 0.1805 | **9.43** | 0.3773 | **no** |
-| busca-marca | **0.000** | 0.2311 | **8.05** | −0.2892 | **no** |
-| busca-generica | +0.030 | 0.2213 | 5.78 | 1.8398 | yes |
-| social-pago | +0.060 | 0.2067 | **3.60** | **5.6981** | yes |
+| email | +0.010 | 0.1717 | **26.96** | 8.2904 | yes |
+| retargeting | **0.000** | 0.1800 | **9.42** | 0.2377 | **no** |
+| busca-marca | **0.000** | 0.2322 | **8.10** | 0.5369 | **no** |
+| busca-generica | +0.030 | 0.2145 | 5.61 | 2.1265 | yes |
+| social-pago | +0.060 | 0.2015 | **3.52** | 5.8173 | yes |
 
 Read top to bottom, that is the ranking the report shows. The two channels in second and third
 place have no established incremental return at all — **31.9% of a 470,000 budget** — and the
-channel ranked last is the only one that creates demand rather than harvesting it. Blended, the
-account reports **ROAS 6.6711 against iROAS 2.8667**.
+channel ranked last is the only one that creates demand rather than harvesting it, with the only
+ROAS-to-iROAS ratio below one. Blended, the account reports **ROAS 6.6814 against iROAS 3.2568**.
 
 Three more results from the same dataset:
 
-- **Last-click gives the two channels with no effect 41.16% of the credit**, and makes the one with
+- **Last-click gives the two channels with no effect 41.22% of the credit**, and makes the one with
   the steepest intent-based targeting the single largest line in the account.
-- **First-click and last-click disagree by up to 7.67×** on the same journeys. Only the rule
+- **First-click and last-click disagree by up to 7.01×** on the same journeys. Only the rule
   changed.
 - **The Shapley value of the journey coverage game is exactly linear attribution.** Computed the
-  long way, over every coalition: the largest difference is 9.09e-13 conversions out of 17,419. The
+  long way, over every coalition: the largest difference is 1.8e-12 conversions out of 17,446. The
   "data-driven" model is divide-by-n, and it is provably indifferent to the order of the touches it
   is sold as understanding.
+- **10.16% of the conversions have no touch at all**, and every model silently drops or rescales
+  them.
 
 ## And the test that produced the right-hand columns was never sized
 
@@ -59,9 +61,10 @@ region was switched off — including the part nobody computes:
   *return* differs by a factor of nine.** The same test, the same weeks: it resolves returns down to
   0.47 on the largest channel and can establish nothing below **4.25** on the smallest. Email's true
   return of 5.76 comes back as "somewhere between 2.8 and 8.8".
-- **A null result on a small channel buys an upper bound and nothing else.** The retargeting holdout
-  ruled out returns above 1.4085 — a real fact, thirteen weeks of it — and the design could not have
-  established any return below 1.4166. Those two numbers are the same size by construction.
+- **A null result on a small channel buys an upper bound and little else.** The retargeting holdout
+  ruled out returns above 1.0745 — a real fact, thirteen weeks of it — while the design could not
+  have established any return below 1.4166: there was no return it could both miss and detect. Those
+  two numbers are always of the same size, which is the general statement.
 - **The holdout costs nothing on the channels that do nothing**, and gives up 27.64% of the held-out
   regions' conversions on the channel it matters most to keep.
 - **Half the design is free and it is the half nobody extends.** A longer pre-period holds nobody
@@ -83,9 +86,9 @@ runs for thirteen weeks on a dashboard.
 - **Its first boundary is 7.58 standard errors**, which is the design saying that nothing observable
   in week one should end a thirteen-week test.
 - **And a correct boundary fixes the error rate only.** At equal power, reading once overstates a
-  real effect by 12% — publication is conditional on significance — O'Brien-Fleming by 27%, Pocock by
+  real effect by 13% — publication is conditional on significance — O'Brien-Fleming by 27%, Pocock by
   48%, and weekly peeking by **73%**. On an underpowered test, read weekly, the reported effect is
-  **2.64 times** the truth and 3.8% of the results that clear the line point the wrong way.
+  **2.63 times** the truth and 3.9% of the results that clear the line point the wrong way.
 
 ## Modules
 
@@ -118,7 +121,7 @@ python examples/03_the_test_read_every_monday.py
 
 ## How the claims are kept honest
 
-**223 tests, 100% statement and branch coverage.** 183 of them run in seconds and gate every push.
+**225 tests, 100% statement and branch coverage.** 185 of them run in seconds and gate every push.
 The remaining 40 re-derive, from the generator, every figure quoted in every README on this
 repository, and run every example script. A change that moves a published number breaks the build
 instead of leaving the text quietly wrong.
@@ -137,7 +140,11 @@ Three disciplines, each of which was adopted after it caught something:
    published boundaries, and against a four-million-draw simulation.
 2. **Figures are asserted, not quoted.** Including the ones about the repository itself: the test
    count above, the module table matching the package, both language editions existing, and every
-   example being linked from somewhere.
+   example being linked from somewhere. And including the claim that makes the rest possible:
+   **every draw in the generator is an inverse transform of the uniform stream, never a rejection
+   sampler**, so the stream position depends on how many values are asked for and not on which
+   library version answers. That rule is enforced against the source, because the first version of
+   this repository published figures that held on one machine and moved on a clean install.
 3. **Connecting the modules finds defects that writing more modules does not.** Seven of the eight
    defects recorded so far were found by writing an example, a control case or a sentence — not by
    reading code.

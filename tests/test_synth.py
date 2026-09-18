@@ -6,6 +6,8 @@ analytic value or a property the construction guarantees.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -18,6 +20,7 @@ from mktlab.synth import (
     GEO,
     GEO_COLUMNS,
     JOURNEY_COLUMNS,
+    SEED,
     TRUTH_COLUMNS,
     AudienceProfile,
     ChannelProfile,
@@ -168,10 +171,72 @@ def test_the_stream_order_pins_are_unchanged(full: Dataset) -> None:
     """The generator is consumed in stream order, so a draw inserted anywhere shifts these.
 
     They exist so that a change which silently moves every published figure fails here, in one
-    line, rather than in thirty assertions about tables downstream of it.
+    line, rather than in thirty assertions about tables downstream of it. The sums are pinned as
+    well as the first values, because a first row can match by coincidence while everything after it
+    has moved - which is exactly what happened when the geo panel was drawn with a library binomial.
     """
-    assert float(full.audience.iloc[0]["intent"]) == pytest.approx(0.17388674862848544)
-    assert int(full.geo_experiments.iloc[0]["conversions"]) == 192
+    assert float(full.audience.iloc[0]["intent"]) == pytest.approx(0.2839801037362014)
+    assert int(full.audience["converted"].sum()) == 19_418
+    assert len(full.journeys) == 278_062
+    assert int(full.geo_experiments.iloc[0]["conversions"]) == 203
+    assert int(full.geo_experiments["conversions"].sum()) == 1_059_224
+
+
+def test_the_uniform_stream_itself_is_what_it_has_always_been() -> None:
+    """The one thing the whole dataset now rests on, asserted directly.
+
+    Every draw is an inverse transform of this stream, so if these three numbers ever change, every
+    figure in the repository changes with them - and this test says so in one line instead of
+    leaving thirty tables to disagree with the documentation. They are a property of PCG64 and the
+    seed, which numpy guarantees, rather than of any distribution implementation, which it does not.
+    """
+    assert np.random.default_rng(SEED).random(3).tolist() == [
+        0.7739560485559633,
+        0.4388784397520523,
+        0.8585979199113825,
+    ]
+
+
+def test_the_generator_draws_nothing_but_uniforms() -> None:
+    """The contract that keeps the figures reproducible, enforced against the source.
+
+    A library's ``binomial``, ``beta``, ``choice`` or ``normal`` is usually a rejection sampler: it
+    consumes a variable number of uniforms per draw, so the stream position after it depends on the
+    sampler's internals rather than on how many values were asked for. Change library version,
+    change the internals, and every figure downstream moves. That is not hypothetical - it is why
+    ``_draws.py`` exists.
+
+    So the rule is that only ``rng.random`` may be called, and only from that module. This test
+    reads the package and enforces it, because a rule nothing checks is a rule that lasts until the
+    next module.
+    """
+    package = Path(__file__).resolve().parents[1] / "src" / "mktlab"
+    forbidden = (
+        "binomial",
+        "beta",
+        "choice",
+        "normal",
+        "permutation",
+        "shuffle",
+        "poisson",
+        "standard_normal",
+        "integers",
+        "uniform",
+        "exponential",
+        "gamma",
+    )
+    offenders = []
+    for path in sorted(package.rglob("*.py")):
+        if path.name == "_draws.py":
+            continue
+        text = path.read_text(encoding="utf-8")
+        for name in forbidden:
+            if f"rng.{name}(" in text:
+                offenders.append(f"{path.relative_to(package)}: rng.{name}(")
+    assert not offenders, (
+        "these draws consume a variable number of uniforms, which makes the published figures "
+        "depend on the library version: " + "; ".join(offenders)
+    )
 
 
 def test_a_tiny_audience_still_produces_both_tables() -> None:

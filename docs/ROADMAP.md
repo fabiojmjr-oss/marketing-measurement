@@ -114,6 +114,46 @@ a decision rule nobody knew was in force.
    O'Brien-Fleming's first nominal level as 1e-13 where it is 3.5e-14. It changes no argument, which
    is exactly why it would have survived: the claim tests now assert it.
 
+## The reproducibility fix *(after wave 3)*
+
+The repository's central promise is that the default seed reproduces every published number. It did
+not. The first three waves were published from a machine whose figures a clean install did not
+reproduce: the attribution tables matched to the last decimal while every figure downstream of the
+geo panel's binomial moved.
+
+**What changed.** Every draw now goes through `src/mktlab/synth/_draws.py`, and nothing there samples
+by rejection: intent comes from a beta quantile, region levels and stage noise from a normal
+quantile, the holdout split from sorted uniform keys, and each region-week's conversions from one
+Bernoulli trial per user — about ten million uniforms for the whole panel, which costs a second. The
+number of uniforms consumed now depends only on how many values are asked for, so the stream position
+cannot drift with a library version. A test reads the package and fails if any module calls a
+distribution method other than `random`, and it immediately caught a second instance nobody had
+looked for: the exaggeration simulation in `design.sequential` was using `standard_normal`, which is
+the ziggurat algorithm and rejects.
+
+**What is honest about the diagnosis.** The mechanism fits the evidence and was not observed. The
+two environments differed in their numpy version, and the newer one could not be installed on the
+interpreter available for testing, so the divergence was never reproduced side by side. The fix
+removes the class rather than the instance, which is the right response to a defect whose exact
+cause cannot be pinned down.
+
+**What it cost.** Every data-dependent figure in waves 1 to 3 moved and was rewritten — four module
+documents, two root READMEs, three examples and the claim tests. Two of the rewrites changed what the
+documents *say*, not just what they quote, and both are better for it:
+
+- One holdout interval of five no longer covers the truth. A 95% interval is wrong one time in twenty
+  by construction, five were computed, and the miss is 2.6 predicted standard errors out on the
+  channel with the largest effect. The document now publishes the miss and says why an estimator that
+  never missed would be one whose intervals were too wide.
+- The two null results are no longer the same kind of null. busca-marca's design could resolve the
+  range its answer turned out to sit in; retargeting's could not. That pair says more about sizing
+  than the old coincidence did.
+
+**What the pins are now.** The first uniform of the stream is asserted directly, and both the first
+values and the sums of the generated tables are pinned — because a first row can match by coincidence
+while everything after it has moved, which is exactly what happened here and is why the original pin
+did not catch it.
+
 ## What is deliberately not here
 
 - **No market statistics, industry benchmarks or third-party figures.** Every number in this

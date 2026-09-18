@@ -8,6 +8,11 @@ The panel is aggregated rather than simulated user by user: conversions in a reg
 from a binomial around the exact mean rate the audience model implies. Exact for the mean, and
 slightly generous with the variance, because a binomial treats users as identical when they differ
 in intent. Overstating the noise makes every interval computed from this panel conservative.
+
+The binomial is counted one trial at a time, through :mod:`mktlab.synth._draws`, rather than taken
+from the library's constant-time sampler. That costs about ten million uniforms for the whole panel
+and buys the thing this repository is built on: figures that reproduce on a machine other than the
+author's. See that module for what went wrong before it did.
 """
 
 from __future__ import annotations
@@ -15,6 +20,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from ._draws import binomial, normal, order_of
 from .config import AUDIENCE, CHANNELS, GEO, AudienceProfile, ChannelProfile, GeoProfile
 
 GEO_COLUMNS = ("channel", "geo", "week", "holdout", "users", "conversions")
@@ -74,8 +80,8 @@ def _one_panel(
     design: GeoProfile,
 ) -> pd.DataFrame:
     holdout = np.zeros(design.geos, dtype=bool)
-    holdout[rng.choice(design.geos, size=design.geos // 2, replace=False)] = True
-    level = rng.normal(0.0, design.geo_sd, size=design.geos)
+    holdout[order_of(rng, design.geos)[: design.geos // 2]] = True
+    level = normal(rng, design.geos, design.geo_sd)
 
     live = tuple(CHANNELS)
     without = tuple(other for other in CHANNELS if other.channel != profile.channel)
@@ -95,7 +101,7 @@ def _one_panel(
                     "week": week,
                     "holdout": bool(holdout[geo]),
                     "users": design.users_per_geo_week,
-                    "conversions": int(rng.binomial(design.users_per_geo_week, rate)),
+                    "conversions": binomial(rng, design.users_per_geo_week, rate),
                 }
             )
     return pd.DataFrame(rows)

@@ -72,33 +72,40 @@ SIZING_COLUMNS = (
 CURVE_COLUMNS = ("lift", "power", "detectable", "iroas")
 
 
+def _or_its_limit(tail: float, limit: float = 0.0) -> float:
+    """``tail`` when it is a number, and its limit when the library could not produce one.
+
+    Separated out so that the limit can be tested directly. Reaching it through scipy would make
+    the test a statement about which scipy versions have the defect, which is not a property this
+    package should require of anything.
+    """
+    return tail if math.isfinite(tail) else limit
+
+
 def _power_from_noncentral_t(ncp: float, df: float, alpha: float) -> float:
     """Power of a two-sided t-test with noncentrality ``ncp``.
 
     The noncentral t is the exact null-to-alternative shift for a t statistic; substituting a
     normal is the approximation that understates the size of the test.
 
-    One tail is replaced by its limit: scipy returns ``nan``, rather than a small number, for the
-    lower tail of a large positive noncentrality at few degrees of freedom. At two degrees of
-    freedom and a noncentrality of 25 the lower tail comes back ``nan`` while the upper is
-    0.9999999999999444. What it replaces is the probability of rejecting in the direction opposite
-    a large true effect, which is negligible, so the limit is an error no larger than the value it
-    stands in for - and without it the whole calculation is ``nan`` for an effect large enough that
-    the answer is obvious. It is reached by the root finder walking its bracket outwards, not by
-    anybody asking for it.
+    The lower tail is taken through :func:`_or_its_limit`, because some scipy versions return
+    ``nan`` there rather than a very small number: at two degrees of freedom and a noncentrality of
+    25, scipy 1.17 gives ``nan`` while a newer one gives 3.1e-29. Either is acceptable to a caller
+    who wants the power, and neither can be relied on, so the code takes the value when it is finite
+    and its limit when it is not. Whether a given scipy needs the limit is not asserted anywhere:
+    that would be a test of scipy's internals, and an earlier version of this module did assert it
+    and broke on an interpreter whose scipy happened to be right.
 
-    Only that tail and only that direction are guarded, because that is the only case scipy
-    produces. Which of the four it produces is asserted in the tests rather than assumed here, so a
-    scipy that starts failing on a different tail breaks the build instead of quietly returning
-    ``nan``.
+    What it stands in for is the probability of rejecting in the direction opposite a large true
+    effect, which is negligible. Without the guard the whole calculation is ``nan`` for an effect
+    large enough that the answer is obvious, and it is reached by the root finder walking its
+    bracket outwards rather than by anybody asking for it.
     """
     if df <= 0:
         raise ValueError("not enough degrees of freedom to compute power")
     critical = float(stats.t.ppf(1.0 - alpha / 2.0, df))
     upper = float(stats.nct.sf(critical, df, ncp))
-    lower = float(stats.nct.cdf(-critical, df, ncp))
-    if not math.isfinite(lower):
-        lower = 0.0
+    lower = _or_its_limit(float(stats.nct.cdf(-critical, df, ncp)))
     return upper + lower
 
 

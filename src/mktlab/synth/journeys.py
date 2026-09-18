@@ -14,6 +14,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from ._draws import bernoulli, beta, normal
 from .config import AUDIENCE, CHANNELS, STAGE_NOISE, AudienceProfile, ChannelProfile
 
 AUDIENCE_COLUMNS = ("user", "intent", "touches", "converted")
@@ -70,13 +71,17 @@ def conversion_probability(
 def _draw(
     rng: np.random.Generator, audience: AudienceProfile
 ) -> tuple[np.ndarray, dict[str, np.ndarray], np.ndarray]:
-    """Intent, exposure and conversion, drawn in the causal order."""
-    intent = rng.beta(audience.intent_alpha, audience.intent_beta, size=audience.users)
+    """Intent, exposure and conversion, drawn in the causal order.
+
+    Every draw goes through :mod:`mktlab.synth._draws`, which never samples by rejection, so the
+    stream position after this function depends only on the number of users.
+    """
+    intent = beta(rng, audience.users, audience.intent_alpha, audience.intent_beta)
     exposed = {
-        profile.channel: rng.random(audience.users) < exposure_probability(profile, intent)
+        profile.channel: bernoulli(rng, exposure_probability(profile, intent))
         for profile in CHANNELS
     }
-    converted = rng.random(audience.users) < conversion_probability(audience, intent, exposed)
+    converted = bernoulli(rng, conversion_probability(audience, intent, exposed))
     return intent, exposed, converted
 
 
@@ -89,7 +94,7 @@ def _ordered_touches(
     stage rather than at random, so a late-funnel channel is usually - not always - the last touch.
     """
     stages = {profile.channel: profile.stage for profile in CHANNELS}
-    noise = {profile.channel: rng.normal(0.0, STAGE_NOISE, size=users) for profile in CHANNELS}
+    noise = {profile.channel: normal(rng, users, STAGE_NOISE) for profile in CHANNELS}
     journeys: list[list[str]] = []
     for index in range(users):
         touched = [profile.channel for profile in CHANNELS if exposed[profile.channel][index]]

@@ -4,7 +4,7 @@
 
 ## The business problem
 
-A monthly report says retargeting returned 9.43 on every unit spent and branded search 8.05. They
+A monthly report says retargeting returned 9.42 on every unit spent and branded search 8.10. They
 rank second and third in the account. Both figures are arithmetically correct, both come straight
 out of the platform, and in this dataset **both channels have a true effect of exactly zero**.
 
@@ -42,25 +42,25 @@ lift.verdict()  # "... not distinguishable from nothing"
 
 ## Result 1: six models, one set of journeys
 
-200,000 users, 277,849 touches, 19,393 conversions. The shares below are of the conversions each
+200,000 users, 278,062 touches, 19,418 conversions. The shares below are of the conversions each
 model can see.
 
 | Channel | True effect | last-click | first-click | linear | position 40-20-40 | time-decay | Shapley |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| social-pago | **+0.060** | 0.2067 | 0.6662 | 0.4027 | 0.4184 | 0.3219 | 0.4027 |
-| email | +0.010 | 0.1605 | 0.1594 | 0.1925 | 0.1780 | 0.1840 | 0.1925 |
-| busca-generica | +0.030 | 0.2213 | 0.1004 | 0.1811 | 0.1711 | 0.2001 | 0.1811 |
-| retargeting | **0.000** | 0.1805 | 0.0439 | 0.1144 | 0.1130 | 0.1416 | 0.1144 |
-| busca-marca | **0.000** | 0.2311 | 0.0301 | 0.1093 | 0.1195 | 0.1524 | 0.1093 |
+| social-pago | **+0.060** | 0.2015 | 0.6684 | 0.4012 | 0.4168 | 0.3191 | 0.4012 |
+| email | +0.010 | 0.1717 | 0.1596 | 0.1983 | 0.1837 | 0.1916 | 0.1983 |
+| busca-generica | +0.030 | 0.2145 | 0.0942 | 0.1743 | 0.1645 | 0.1933 | 0.1743 |
+| retargeting | **0.000** | 0.1800 | 0.0447 | 0.1150 | 0.1134 | 0.1420 | 0.1150 |
+| busca-marca | **0.000** | 0.2322 | 0.0331 | 0.1112 | 0.1216 | 0.1540 | 0.1112 |
 
-**Last-click gives the two channels with no effect 41.16% of the credit**, and makes busca-marca —
-whose true effect is zero — the single largest line in the account at 23.11%. This is not a flaw in
+**Last-click gives the two channels with no effect 41.22% of the credit**, and makes busca-marca —
+whose true effect is zero — the single largest line in the account at 23.22%. This is not a flaw in
 last-click's arithmetic. It is what "last touch before the conversion" means when a channel's whole
 targeting rule is *people who are about to convert*: its exposure rises with intent at a slope of
 0.80, the steepest in the account, and the conversion arrives right after it by construction.
 
-**The two ends of the same journey disagree by up to 7.67×.** social-pago gets 3.22 times more
-credit from first-click than from last-click; busca-marca gets 7.67 times more from last-click than
+**The two ends of the same journey disagree by up to 7.01×.** social-pago gets 3.32 times more
+credit from first-click than from last-click; busca-marca gets 7.01 times more from last-click than
 from first-click. Same users, same touches, same order. Only the rule changed, and the rule was
 chosen by whoever configured the dashboard.
 
@@ -73,14 +73,14 @@ conversions whose whole journey sits inside it — it is computed here from the 
 
 | Channel | Shapley | Linear | Difference |
 | --- | --- | --- | --- |
-| social-pago | 7015.233333 | 7015.233333 | 0 |
-| email | 3353.483333 | 3353.483333 | 0 |
-| busca-generica | 3153.983333 | 3153.983333 | 0 |
-| retargeting | 1992.066667 | 1992.066667 | 0 |
-| busca-marca | 1904.233333 | 1904.233333 | 0 |
+| social-pago | 6998.533333 | 6998.533333 | 0 |
+| email | 3459.366667 | 3459.366667 | 0 |
+| busca-generica | 3040.783333 | 3040.783333 | 0 |
+| retargeting | 2006.866667 | 2006.866667 | 0 |
+| busca-marca | 1940.450000 | 1940.450000 | 0 |
 
-**They are the same allocation.** The largest absolute difference is 9.09e-13 conversions out of
-17,419, and 2.8e-17 as a share — floating point, not disagreement. The reason is structural rather
+**They are the same allocation.** The largest absolute difference is 1.8e-12 conversions out of
+17,446, and 1.1e-16 as a share — floating point, not disagreement. The reason is structural rather
 than numerical: in the coverage game a journey's value is indivisible and appears only when every
 one of its channels is present, so each of its *k* channels has the same marginal contribution in
 the same number of orderings, and the Shapley value of that journey is 1/*k* to each. Summed over
@@ -97,14 +97,14 @@ value itself.
 
 | | Conversions |
 | --- | --- |
-| In the period | 19,393 |
-| With at least one touch | 17,419 |
-| **Touched by nothing at all** | **1,974 (10.18%)** |
+| In the period | 19,418 |
+| With at least one touch | 17,446 |
+| **Touched by nothing at all** | **1,972 (10.16%)** |
 
-Every share in the tables above divides the 17,419. The 1,974 are users who converted with no
+Every share in the tables above divides the 17,446. The 1,972 are users who converted with no
 marketing contact — in this generator, high-intent users the channels happened to miss. A report
 that presents channel shares as adding to one hundred per cent of the business has silently handed
-those 1,974 conversions to the channels **in proportion to the credit they already had**, which
+those 1,972 conversions to the channels **in proportion to the credit they already had**, which
 means the channel that over-credits itself most also absorbs the most of what it never touched.
 
 That error was in this module's own code first: `returns` originally multiplied each channel's
@@ -121,17 +121,25 @@ observations of a change.
 
 | Channel | Lift (rate points) | 95% interval | p | Significant | True lift | Interval covers truth |
 | --- | --- | --- | --- | --- | --- | --- |
-| social-pago | +0.028490 | +0.026890 to +0.030091 | 0.0000 | yes | 0.0270 | yes |
-| busca-generica | +0.006133 | +0.004620 to +0.007645 | 0.0000 | yes | 0.0075 | yes |
-| email | +0.002898 | +0.000650 to +0.005146 | 0.0131 | yes | 0.0032 | yes |
-| retargeting | +0.000629 | −0.001090 to +0.002348 | 0.4633 | no | 0.0000 | yes |
-| busca-marca | −0.000723 | −0.002461 to +0.001015 | 0.4044 | no | 0.0000 | yes |
+| social-pago | +0.029087 | +0.027398 to +0.030775 | 0.0000 | yes | 0.0270 | **no** |
+| busca-generica | +0.007088 | +0.005338 to +0.008839 | 0.0000 | yes | 0.0075 | yes |
+| email | +0.004606 | +0.002843 to +0.006368 | 0.0000 | yes | 0.0032 | yes |
+| retargeting | +0.000396 | −0.000999 to +0.001791 | 0.5687 | no | 0.0000 | yes |
+| busca-marca | +0.001342 | −0.000636 to +0.003320 | 0.1759 | no | 0.0000 | yes |
 
-**Five intervals out of five contain the truth, and the two channels with no effect are exactly
-the two the test refuses to separate from zero.** The estimator is not smarter than attribution; it
-is aimed at the right quantity. Note what "not significant" buys here: busca-marca's point estimate
-is *negative*, and the honest reading is not "branded search hurts" but "this test cannot tell, and
-its interval is ±0.0017 rate points wide."
+**The two channels with no effect are exactly the two the test refuses to separate from zero.** The
+estimator is not smarter than attribution; it is aimed at the right quantity.
+
+**And one interval out of the five misses the truth**, which is the other thing worth publishing
+rather than hiding. social-pago's interval runs from +0.0274 to +0.0308 and the truth is +0.0270 — a
+miss of four ten-thousandths, on the channel with the largest effect. A 95% interval is wrong one
+time in twenty by construction; five were computed here and one missed, which is what the method
+promises rather than a failure of it. The miss is 2.6 predicted standard errors from the truth. An
+interval that never missed across five tests would be evidence that it was too wide.
+
+Note also what "not significant" buys: busca-marca's estimate is *positive*, +0.0013, on a channel
+whose true effect is zero. The honest reading is not "branded search helps a little" but "this test
+cannot tell, and its interval is ±0.0020 rate points wide."
 
 ## Result 5: the ranking inverts
 
@@ -140,11 +148,11 @@ conversions from the holdout, over 200,000 users:
 
 | Channel | Spend | Credited | ROAS | Incremental | iROAS | Established | ROAS ÷ iROAS |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| email | 20,000 | 2,796 | **25.16** | 579.6 | 5.2165 | yes | 4.82 |
-| retargeting | 60,000 | 3,144 | **9.43** | 125.8 | 0.3773 | **no** | — |
-| busca-marca | 90,000 | 4,025 | **8.05** | −144.6 | −0.2892 | **no** | — |
-| busca-generica | 120,000 | 3,854 | 5.78 | 1,226.5 | 1.8398 | yes | 3.14 |
-| social-pago | 180,000 | 3,600 | **3.60** | 5,698.1 | **5.6981** | yes | **0.63** |
+| email | 20,000 | 2,996 | **26.96** | 921.2 | 8.2904 | yes | 3.25 |
+| retargeting | 60,000 | 3,140 | **9.42** | 79.2 | 0.2377 | **no** | — |
+| busca-marca | 90,000 | 4,051 | **8.10** | 268.5 | 0.5369 | **no** | — |
+| busca-generica | 120,000 | 3,743 | 5.61 | 1,417.7 | 2.1265 | yes | 2.64 |
+| social-pago | 180,000 | 3,516 | **3.52** | 5,817.3 | 5.8173 | yes | **0.60** |
 
 Read top to bottom, that is the report's ranking. Three things in it are wrong in three different
 ways.
@@ -155,20 +163,21 @@ Note that this is not the same claim as "wasted": a test that fails to reject is
 It is the weaker and more useful claim that after running a 13-week holdout across 20 regions, the
 account still has no evidence for a third of its spend.
 
-**The ratio is deliberately `nan` where nothing was established.** busca-marca's iROAS of −0.2892
-would read as a finding, and it is not one: it is a point estimate whose interval covers zero,
-divided into a spend. Publishing a ratio against an unmeasured denominator is how a non-result
-becomes a slide, so `returns` returns `nan` and an `established` column instead.
+**The ratio is deliberately `nan` where nothing was established.** busca-marca's iROAS of 0.5369
+would read as a finding — a poor return, but a return — and it is not one: it is a point estimate
+whose interval covers zero, divided into a spend. Publishing a ratio against an unmeasured
+denominator is how a non-result becomes a slide, so `returns` returns `nan` and an `established`
+column instead.
 
 **And the error runs the other way too, which is the part that gets missed.** social-pago is the
-*worst* channel by ROAS at 3.60 and the best by iROAS at 5.70 — a ratio of **0.63**. It is the only
-channel that creates demand rather than harvesting it, so the conversions it starts are closed
-weeks later by somebody standing closer to the sale. An account optimised on ROAS does not merely
-overspend on branded search; it defunds the channel that fills the funnel, and then watches branded
-search volume fall for reasons the dashboard cannot explain.
+*worst* channel by ROAS at 3.52 and the second best by iROAS at 5.82 — the only ratio below one, at
+**0.60**. It is the only channel here that creates demand rather than harvesting it, so the
+conversions it starts are closed weeks later by somebody standing closer to the sale. An account
+optimised on ROAS does not merely overspend on branded search; it defunds the channel that fills the
+funnel, and then watches branded search volume fall for reasons the dashboard cannot explain.
 
-Blended, the account reports **ROAS 6.6711 against iROAS 2.8667** — the same spend and the same
-period, 2.3 times apart.
+Blended, the account reports **ROAS 6.6814 against iROAS 3.2568** — the same spend and the same
+period, 2.05 times apart.
 
 ## Assumptions and limitations
 
@@ -226,8 +235,8 @@ period, 2.3 times apart.
 
 ## O problema de negócio
 
-Um relatório mensal diz que retargeting devolveu 9,43 por unidade investida e a busca de marca
-8,05. São o segundo e o terceiro colocados da conta. As duas cifras estão aritmeticamente corretas,
+Um relatório mensal diz que retargeting devolveu 9,42 por unidade investida e a busca de marca
+8,10. São o segundo e o terceiro colocados da conta. As duas cifras estão aritmeticamente corretas,
 as duas saem direto da plataforma, e neste conjunto de dados **os dois canais têm efeito verdadeiro
 exatamente zero**.
 
@@ -259,32 +268,32 @@ unattributable(data.audience, data.journeys)  # as conversões que nenhum modelo
 
 panel = data.geo_experiments[data.geo_experiments["channel"] == "busca-marca"]
 lift = geo_lift(panel, split=GEO.split, channel="busca-marca")
-lift.lift, lift.p_value, lift.significant  # -0,000723, 0,4044, False
+lift.lift, lift.p_value, lift.significant  # 0,001342, 0,1759, False
 lift.verdict()  # "... not distinguishable from nothing"
 ```
 
 ## Resultado 1: seis modelos, uma mesma base de jornadas
 
-200.000 usuários, 277.849 toques, 19.393 conversões. As participações abaixo são sobre as
+200.000 usuários, 278.062 toques, 19.418 conversões. As participações abaixo são sobre as
 conversões que cada modelo consegue ver.
 
 | Canal | Efeito real | last-click | first-click | linear | posição 40-20-40 | time-decay | Shapley |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| social-pago | **+0,060** | 0,2067 | 0,6662 | 0,4027 | 0,4184 | 0,3219 | 0,4027 |
-| email | +0,010 | 0,1605 | 0,1594 | 0,1925 | 0,1780 | 0,1840 | 0,1925 |
-| busca-generica | +0,030 | 0,2213 | 0,1004 | 0,1811 | 0,1711 | 0,2001 | 0,1811 |
-| retargeting | **0,000** | 0,1805 | 0,0439 | 0,1144 | 0,1130 | 0,1416 | 0,1144 |
-| busca-marca | **0,000** | 0,2311 | 0,0301 | 0,1093 | 0,1195 | 0,1524 | 0,1093 |
+| social-pago | **+0,060** | 0,2015 | 0,6684 | 0,4012 | 0,4168 | 0,3191 | 0,4012 |
+| email | +0,010 | 0,1717 | 0,1596 | 0,1983 | 0,1837 | 0,1916 | 0,1983 |
+| busca-generica | +0,030 | 0,2145 | 0,0942 | 0,1743 | 0,1645 | 0,1933 | 0,1743 |
+| retargeting | **0,000** | 0,1800 | 0,0447 | 0,1150 | 0,1134 | 0,1420 | 0,1150 |
+| busca-marca | **0,000** | 0,2322 | 0,0331 | 0,1112 | 0,1216 | 0,1540 | 0,1112 |
 
-**O last-click entrega aos dois canais sem efeito 41,16% do crédito** e faz da busca de marca —
-cujo efeito real é zero — a maior linha isolada da conta, com 23,11%. Isso não é uma falha da
+**O last-click entrega aos dois canais sem efeito 41,22% do crédito** e faz da busca de marca —
+cujo efeito real é zero — a maior linha isolada da conta, com 23,22%. Isso não é uma falha da
 aritmética do last-click. É o que "último toque antes da conversão" significa quando toda a regra de
 segmentação do canal é *pessoas que estão a ponto de converter*: sua exposição cresce com a intenção
 a uma inclinação de 0,80, a mais inclinada da conta, e a conversão chega logo depois dele por
 construção.
 
-**As duas pontas da mesma jornada divergem até 7,67×.** O social-pago recebe 3,22 vezes mais
-crédito do first-click que do last-click; a busca de marca recebe 7,67 vezes mais do last-click que
+**As duas pontas da mesma jornada divergem até 7,01×.** O social-pago recebe 3,32 vezes mais
+crédito do first-click que do last-click; a busca de marca recebe 7,01 vezes mais do last-click que
 do first-click. Mesmos usuários, mesmos toques, mesma ordem. Só a regra mudou — e a regra foi
 escolhida por quem configurou o painel.
 
@@ -297,13 +306,13 @@ todas as 2⁵ coalizões, com os pesos fatoriais:
 
 | Canal | Shapley | Linear | Diferença |
 | --- | --- | --- | --- |
-| social-pago | 7015,233333 | 7015,233333 | 0 |
-| email | 3353,483333 | 3353,483333 | 0 |
-| busca-generica | 3153,983333 | 3153,983333 | 0 |
-| retargeting | 1992,066667 | 1992,066667 | 0 |
-| busca-marca | 1904,233333 | 1904,233333 | 0 |
+| social-pago | 6998,533333 | 6998,533333 | 0 |
+| email | 3459,366667 | 3459,366667 | 0 |
+| busca-generica | 3040,783333 | 3040,783333 | 0 |
+| retargeting | 2006,866667 | 2006,866667 | 0 |
+| busca-marca | 1940,450000 | 1940,450000 | 0 |
 
-**É a mesma alocação.** A maior diferença absoluta é 9,09e-13 conversões em 17.419, e 2,8e-17 em
+**É a mesma alocação.** A maior diferença absoluta é 1,8e-12 conversões em 17.446, e 1,1e-16 em
 participação — ponto flutuante, não discordância. A razão é estrutural, não numérica: no jogo de
 cobertura o valor de uma jornada é indivisível e só aparece quando todos os seus canais estão
 presentes, então cada um dos seus *k* canais tem a mesma contribuição marginal no mesmo número de
@@ -321,14 +330,14 @@ que se deve pedir a ele — não do valor de Shapley.
 
 | | Conversões |
 | --- | --- |
-| No período | 19.393 |
-| Com ao menos um toque | 17.419 |
-| **Sem nenhum toque** | **1.974 (10,18%)** |
+| No período | 19.418 |
+| Com ao menos um toque | 17.446 |
+| **Sem nenhum toque** | **1.972 (10,16%)** |
 
-Toda participação das tabelas acima divide as 17.419. As 1.974 são usuários que converteram sem
+Toda participação das tabelas acima divide as 17.446. As 1.972 são usuários que converteram sem
 nenhum contato de marketing — neste gerador, usuários de alta intenção que os canais não alcançaram.
 Um relatório que apresenta participações de canal somando cem por cento do negócio entregou em
-silêncio essas 1.974 conversões aos canais **na proporção do crédito que eles já tinham**, o que
+silêncio essas 1.972 conversões aos canais **na proporção do crédito que eles já tinham**, o que
 significa que o canal que mais se supercredita é também o que mais absorve do que nunca tocou.
 
 Esse erro esteve primeiro no código deste próprio módulo: `returns` originalmente multiplicava a
@@ -345,17 +354,25 @@ observações independentes de uma mudança.
 
 | Canal | Lift (pontos de taxa) | Intervalo 95% | p | Significante | Lift real | Intervalo cobre a verdade |
 | --- | --- | --- | --- | --- | --- | --- |
-| social-pago | +0,028490 | +0,026890 a +0,030091 | 0,0000 | sim | 0,0270 | sim |
-| busca-generica | +0,006133 | +0,004620 a +0,007645 | 0,0000 | sim | 0,0075 | sim |
-| email | +0,002898 | +0,000650 a +0,005146 | 0,0131 | sim | 0,0032 | sim |
-| retargeting | +0,000629 | −0,001090 a +0,002348 | 0,4633 | não | 0,0000 | sim |
-| busca-marca | −0,000723 | −0,002461 a +0,001015 | 0,4044 | não | 0,0000 | sim |
+| social-pago | +0,029087 | +0,027398 a +0,030775 | 0,0000 | sim | 0,0270 | **não** |
+| busca-generica | +0,007088 | +0,005338 a +0,008839 | 0,0000 | sim | 0,0075 | sim |
+| email | +0,004606 | +0,002843 a +0,006368 | 0,0000 | sim | 0,0032 | sim |
+| retargeting | +0,000396 | −0,000999 a +0,001791 | 0,5687 | não | 0,0000 | sim |
+| busca-marca | +0,001342 | −0,000636 a +0,003320 | 0,1759 | não | 0,0000 | sim |
 
-**Cinco intervalos de cinco contêm a verdade, e os dois canais sem efeito são exatamente os dois
-que o teste se recusa a separar de zero.** O estimador não é mais inteligente que a atribuição; ele
-está apontado para a quantidade certa. Repare no que "não significante" compra aqui: a estimativa
-pontual da busca de marca é *negativa*, e a leitura honesta não é "a busca de marca prejudica", mas
-"este teste não consegue dizer, e seu intervalo tem ±0,0017 pontos de taxa de largura".
+**Os dois canais sem efeito são exatamente os dois que o teste se recusa a separar de zero.** O
+estimador não é mais inteligente que a atribuição; ele está apontado para a quantidade certa.
+
+**E um intervalo dos cinco não cobre a verdade**, que é a outra coisa que vale publicar em vez de
+esconder. O intervalo do social-pago vai de +0,0274 a +0,0308 e a verdade é +0,0270 — um erro de
+quatro décimos de milésimo, no canal de maior efeito. Um intervalo de 95% erra uma vez em vinte por
+construção; cinco foram calculados aqui e um errou, que é o que o método promete e não uma falha
+dele. O erro está a 2,6 erros-padrão previstos da verdade. Um intervalo que nunca errasse em cinco
+testes seria evidência de que era largo demais.
+
+Repare também no que "não significante" compra: a estimativa da busca de marca é *positiva*,
++0,0013, num canal cujo efeito real é zero. A leitura honesta não é "a busca de marca ajuda um
+pouco", mas "este teste não consegue dizer, e seu intervalo tem ±0,0020 pontos de taxa de largura".
 
 ## Resultado 5: o ranking se inverte
 
@@ -364,11 +381,11 @@ mesmos canais no holdout, sobre 200.000 usuários:
 
 | Canal | Investimento | Creditadas | ROAS | Incrementais | iROAS | Estabelecido | ROAS ÷ iROAS |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| email | 20.000 | 2.796 | **25,16** | 579,6 | 5,2165 | sim | 4,82 |
-| retargeting | 60.000 | 3.144 | **9,43** | 125,8 | 0,3773 | **não** | — |
-| busca-marca | 90.000 | 4.025 | **8,05** | −144,6 | −0,2892 | **não** | — |
-| busca-generica | 120.000 | 3.854 | 5,78 | 1.226,5 | 1,8398 | sim | 3,14 |
-| social-pago | 180.000 | 3.600 | **3,60** | 5.698,1 | **5,6981** | sim | **0,63** |
+| email | 20.000 | 2.996 | **26,96** | 921,2 | 8,2904 | sim | 3,25 |
+| retargeting | 60.000 | 3.140 | **9,42** | 79,2 | 0,2377 | **não** | — |
+| busca-marca | 90.000 | 4.051 | **8,10** | 268,5 | 0,5369 | **não** | — |
+| busca-generica | 120.000 | 3.743 | 5,61 | 1.417,7 | 2,1265 | sim | 2,64 |
+| social-pago | 180.000 | 3.516 | **3,52** | 5.817,3 | 5,8173 | sim | **0,60** |
 
 Lido de cima para baixo, esse é o ranking do relatório. Três coisas nele estão erradas de três
 maneiras diferentes.
@@ -379,20 +396,20 @@ a mesma afirmação que "desperdiçado": um teste que não rejeita não é prova
 mais fraca e mais útil de que, depois de rodar um holdout de 13 semanas em 20 regiões, a conta
 continua sem evidência para um terço do que investe.
 
-**A razão é deliberadamente `nan` onde nada foi estabelecido.** O iROAS de −0,2892 da busca de marca
-se leria como um achado, e não é: é uma estimativa pontual cujo intervalo cobre zero, dividida por
-um investimento. Publicar uma razão contra um denominador não medido é como um não-resultado vira
+**A razão é deliberadamente `nan` onde nada foi estabelecido.** O iROAS de 0,5369 da busca de marca
+se leria como um achado — um retorno ruim, mas um retorno — e não é: é uma estimativa pontual cujo
+intervalo cobre zero, dividida por um investimento. Publicar uma razão contra um denominador não medido é como um não-resultado vira
 slide, então `returns` devolve `nan` e uma coluna `established` no lugar.
 
 **E o erro corre também na outra direção, que é a parte que passa batido.** O social-pago é o
-*pior* canal por ROAS, com 3,60, e o melhor por iROAS, com 5,70 — uma razão de **0,63**. É o único
-canal que cria demanda em vez de colhê-la, então as conversões que ele inicia são fechadas semanas
+*pior* canal por ROAS, com 3,52, e o segundo melhor por iROAS, com 5,82 — a única razão abaixo de
+um, em **0,60**. É o único canal aqui que cria demanda em vez de colhê-la, então as conversões que ele inicia são fechadas semanas
 depois por alguém mais próximo da venda. Uma conta otimizada por ROAS não apenas investe demais em
 busca de marca; ela desfinancia o canal que enche o funil, e depois assiste ao volume da busca de
 marca cair por razões que o painel não explica.
 
-Agregado, a conta reporta **ROAS 6,6711 contra iROAS 2,8667** — mesmo investimento, mesmo período,
-2,3 vezes de distância.
+Agregado, a conta reporta **ROAS 6,6814 contra iROAS 3,2568** — mesmo investimento, mesmo período,
+2,05 vezes de distância.
 
 ## Premissas e limitações
 

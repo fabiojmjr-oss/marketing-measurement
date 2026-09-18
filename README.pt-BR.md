@@ -28,26 +28,27 @@ converter. Crédito de last-click contra o que um holdout geográfico estabelece
 
 | Canal | Efeito real | Participação last-click | ROAS | iROAS | O holdout estabeleceu? |
 | --- | --- | --- | --- | --- | --- |
-| email | +0,010 | 0,1605 | **25,16** | 5,2165 | sim |
-| retargeting | **0,000** | 0,1805 | **9,43** | 0,3773 | **não** |
-| busca-marca | **0,000** | 0,2311 | **8,05** | −0,2892 | **não** |
-| busca-generica | +0,030 | 0,2213 | 5,78 | 1,8398 | sim |
-| social-pago | +0,060 | 0,2067 | **3,60** | **5,6981** | sim |
+| email | +0,010 | 0,1717 | **26,96** | 8,2904 | sim |
+| retargeting | **0,000** | 0,1800 | **9,42** | 0,2377 | **não** |
+| busca-marca | **0,000** | 0,2322 | **8,10** | 0,5369 | **não** |
+| busca-generica | +0,030 | 0,2145 | 5,61 | 2,1265 | sim |
+| social-pago | +0,060 | 0,2015 | **3,52** | 5,8173 | sim |
 
 Lido de cima para baixo, esse é o ranking que o relatório mostra. Os dois canais em segundo e
 terceiro lugar não têm retorno incremental estabelecido algum — **31,9% de um orçamento de
-470.000** — e o canal em último é o único que cria demanda em vez de colhê-la. Agregado, a conta
-reporta **ROAS 6,6711 contra iROAS 2,8667**.
+470.000** — e o canal em último é o único que cria demanda em vez de colhê-la, e o único com razão
+ROAS/iROAS abaixo de um. Agregado, a conta reporta **ROAS 6,6814 contra iROAS 3,2568**.
 
 Mais três resultados do mesmo conjunto de dados:
 
-- **O last-click entrega aos dois canais sem efeito 41,16% do crédito** e faz daquele com a
+- **O last-click entrega aos dois canais sem efeito 41,22% do crédito** e faz daquele com a
   segmentação mais inclinada pela intenção a maior linha isolada da conta.
-- **First-click e last-click divergem até 7,67×** sobre as mesmas jornadas. Só a regra mudou.
+- **First-click e last-click divergem até 7,01×** sobre as mesmas jornadas. Só a regra mudou.
 - **O valor de Shapley do jogo de cobertura da jornada é exatamente a atribuição linear.** Calculado
-  pelo caminho longo, sobre todas as coalizões: a maior diferença é 9,09e-13 conversões em 17.419. O
+  pelo caminho longo, sobre todas as coalizões: a maior diferença é 1,8e-12 conversões em 17.446. O
   modelo "data-driven" é dividir por n — e é comprovadamente indiferente à ordem dos toques que ele
   é vendido como entendendo.
+- **10,16% das conversões não têm toque algum**, e todo modelo as descarta ou reescala em silêncio.
 
 ## E o teste que produziu as colunas da direita nunca foi dimensionado
 
@@ -58,10 +59,11 @@ O holdout acima resolveu três canais de cinco. Cada parte disso era calculável
   por um fator de nove.** Mesmo teste, mesmas semanas: resolve retornos até 0,47 no maior canal e não
   consegue estabelecer nada abaixo de **4,25** no menor. O retorno real do email, 5,76, volta como
   "algo entre 2,8 e 8,8".
-- **Um resultado nulo num canal pequeno compra um limite superior e nada mais.** O holdout de
-  retargeting descartou retornos acima de 1,4085 — um fato real, treze semanas dele — e o desenho não
-  conseguiria estabelecer nenhum retorno abaixo de 1,4166. Esses dois números têm o mesmo tamanho por
-  construção.
+- **Um resultado nulo num canal pequeno compra um limite superior e pouco mais.** O holdout de
+  retargeting descartou retornos acima de 1,0745 — um fato real, treze semanas dele — enquanto o
+  desenho não conseguiria estabelecer nenhum retorno abaixo de 1,4166: não havia retorno que ele
+  pudesse ao mesmo tempo perder e detectar. Esses dois números têm sempre o mesmo tamanho, que é a
+  afirmação geral.
 - **O holdout não custa nada nos canais que não fazem nada** e abdica de 27,64% das conversões das
   regiões em holdout no canal que mais importa manter.
 - **Metade do desenho é grátis, e é a metade que ninguém estende.** Um pré-período mais longo não
@@ -83,9 +85,9 @@ Ele roda treze semanas num painel.
 - **Sua primeira fronteira é 7,58 erros-padrão**, que é o desenho dizendo que nada observável na
   semana um deveria encerrar um teste de treze semanas.
 - **E uma fronteira correta corrige apenas a taxa de erro.** A poder igual, ler uma vez superestima um
-  efeito real em 12% — a publicação é condicionada à significância —, O'Brien-Fleming em 27%, Pocock
+  efeito real em 13% — a publicação é condicionada à significância —, O'Brien-Fleming em 27%, Pocock
   em 48%, e espiar semanalmente em **73%**. Num teste com pouco poder, lido semanalmente, o efeito
-  reportado é **2,64 vezes** a verdade e 3,8% dos resultados que cruzam a linha apontam para o lado
+  reportado é **2,63 vezes** a verdade e 3,9% dos resultados que cruzam a linha apontam para o lado
   errado.
 
 ## Módulos
@@ -119,7 +121,7 @@ python examples/03_the_test_read_every_monday.py
 
 ## Como as afirmações são mantidas honestas
 
-**223 testes, 100% de cobertura de linhas e de ramos.** 183 deles rodam em segundos e liberam cada
+**225 testes, 100% de cobertura de linhas e de ramos.** 185 deles rodam em segundos e liberam cada
 push. Os 40 restantes re-derivam, a partir do gerador, toda cifra citada em todo README deste
 repositório, e rodam todo script de exemplo. Uma mudança que mova um número publicado quebra o build
 em vez de deixar o texto silenciosamente errado.
@@ -139,7 +141,12 @@ Três disciplinas, cada uma adotada depois de ter pegado algo:
    contra uma simulação de quatro milhões de sorteios.
 2. **Cifras são asseridas, não citadas.** Inclusive as que o repositório faz sobre si mesmo: a
    contagem de testes acima, a tabela de módulos correspondendo ao pacote, as duas edições de idioma
-   existindo, e todo exemplo estando linkado de algum lugar.
+   existindo, e todo exemplo estando linkado de algum lugar. E inclusive a afirmação que torna o
+   resto possível: **todo sorteio do gerador é uma transformada inversa do stream uniforme, nunca um
+   amostrador por rejeição**, de modo que a posição no stream depende de quantos valores são pedidos
+   e não de qual versão de biblioteca responde. Essa regra é verificada contra o código-fonte,
+   porque a primeira versão deste repositório publicou cifras que valiam numa máquina e mudavam numa
+   instalação limpa.
 3. **Conectar os módulos encontra defeitos que escrever mais módulos não encontra.** Sete dos oito
    defeitos registrados até aqui foram achados escrevendo um exemplo, um caso de controle ou uma
    frase — não lendo código. Eles estão registrados na documentação do módulo em vez de corrigidos em silêncio — a

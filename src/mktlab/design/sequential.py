@@ -41,6 +41,7 @@ import numpy as np
 import pandas as pd
 from scipy import optimize, stats
 
+from ..synth._draws import normal as normal_draws
 from .geo import DEFAULT_ALPHA, DEFAULT_POWER
 
 #: Quadrature nodes per look. The answer is stable to six decimals from 100 upwards; 300 is used so
@@ -455,7 +456,8 @@ def exaggeration(
 
     Simulated rather than integrated: the conditional expectation of the estimate at a random
     stopping time has no closed form worth the algebra, and a seeded simulation of it is
-    reproducible to the same standard as everything else here.
+    reproducible to the same standard as everything else here - which means through
+    :mod:`mktlab.synth._draws`, so that the figure does not move with a library version.
 
     Args:
         boundary: The boundary.
@@ -475,7 +477,9 @@ def exaggeration(
     looks = len(boundary)
     drift = ncp / float(np.sqrt(looks))
     rng = np.random.default_rng(seed)
-    increments = drift + rng.standard_normal((draws, looks))
+    # Inverse transform rather than the library's normal, for the reason in mktlab.synth._draws: a
+    # rejection sampler makes a published figure depend on the library version.
+    increments = drift + normal_draws(rng, (draws, looks))
     running = np.cumsum(increments, axis=1)
     index = np.arange(1, looks + 1)
     limits = np.asarray(boundary) * np.sqrt(index)

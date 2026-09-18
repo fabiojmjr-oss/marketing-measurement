@@ -25,7 +25,7 @@ from mktlab.design import (
     retrospective,
     sizing_table,
 )
-from mktlab.design.geo import _power_from_noncentral_t
+from mktlab.design.geo import _or_its_limit, _power_from_noncentral_t
 
 
 def make(**overrides: object) -> GeoDesign:
@@ -477,22 +477,31 @@ def test_power_without_degrees_of_freedom_is_refused() -> None:
         _power_from_noncentral_t(1.0, 0.0, 0.05)
 
 
-def test_scipy_fails_on_exactly_one_of_the_four_tails() -> None:
-    """Which case needs the limit is asserted, not assumed.
+def test_the_limit_is_taken_only_when_the_library_could_not_produce_a_number() -> None:
+    """The guard, tested directly rather than through scipy.
 
-    The module guards the lower tail of a large positive noncentrality and nothing else. If a later
-    scipy starts returning nan on one of the other three, this test fails and the guard gets
-    widened - rather than the power calculation quietly returning nan.
+    An earlier version of this test asserted that scipy returns nan for the lower tail of a large
+    positive noncentrality - true of scipy 1.17, false of the one on another interpreter, which gives
+    3.1e-29. That made the test a claim about scipy's internals, and it broke the build on the
+    interpreter whose scipy was *better*. What the module actually needs is that a non-finite tail
+    becomes its limit and a finite one is left alone.
+    """
+    assert _or_its_limit(float("nan")) == 0.0
+    assert _or_its_limit(float("inf")) == 0.0
+    assert _or_its_limit(3.118094204157165e-29) == 3.118094204157165e-29
+    assert _or_its_limit(0.25) == 0.25
+    assert _or_its_limit(float("nan"), limit=1.0) == 1.0
+
+
+def test_the_far_tail_case_returns_a_number_whatever_scipy_does() -> None:
+    """The case that reaches the guard, at the values that provoke it.
+
+    Whether this particular scipy needs the limit is not asserted: only that the answer comes back
+    as a probability rather than a nan, which is what the root finder that gets here requires.
     """
     critical = float(stats.t.ppf(0.975, 2.0))
-    assert math.isnan(float(stats.nct.cdf(-critical, 2.0, 25.0)))
-    assert math.isfinite(float(stats.nct.sf(critical, 2.0, 25.0)))
-    assert math.isfinite(float(stats.nct.cdf(-critical, 2.0, -25.0)))
-    assert math.isfinite(float(stats.nct.sf(critical, 2.0, -25.0)))
-
-
-def test_the_non_finite_tail_is_replaced_by_its_limit() -> None:
-    """Without it, the power of an obvious effect is nan and the root finder propagates it."""
+    tail = float(stats.nct.cdf(-critical, 2.0, 25.0))
+    assert math.isnan(tail) or 0.0 <= tail < 1e-20, tail
     assert _power_from_noncentral_t(25.0, 2.0, 0.05) == pytest.approx(1.0)
     assert _power_from_noncentral_t(-25.0, 2.0, 0.05) == pytest.approx(1.0)
     assert _power_from_noncentral_t(0.0, 2.0, 0.05) == pytest.approx(0.05)
