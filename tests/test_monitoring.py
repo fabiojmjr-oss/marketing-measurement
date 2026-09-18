@@ -63,10 +63,18 @@ def test_explicit_even_fractions_are_the_same_as_the_default() -> None:
 
 
 def test_wave_three_figures_are_untouched_by_the_generalisation() -> None:
-    """Asserted as exact equality, not approximately: the arithmetic did not change."""
-    assert inflated_alpha(13) == 0.2138142746188343
-    assert pocock(13)[0] == 2.6019105595011642
-    assert obrien_fleming(13)[0] == 7.579939928715328
+    """The refactor must not have changed the arithmetic, to twelve significant figures.
+
+    Not bit-identical, which is what this asserted first and what broke the build on the other
+    interpreter: ``inflated_alpha(13)`` came back 4.9e-15 apart there, in the fourteenth significant
+    digit, because a different libm rounds a transcendental differently. Bit-identity across builds
+    is not a property floating point offers, so asking for it tests the platform rather than the
+    change. Agreement to 1e-12 is five orders of magnitude tighter than any figure this repository
+    publishes and it establishes what the test is for.
+    """
+    assert inflated_alpha(13) == pytest.approx(0.2138142746188343, rel=1e-12)
+    assert pocock(13)[0] == pytest.approx(2.6019105595011642, rel=1e-12)
+    assert obrien_fleming(13)[0] == pytest.approx(7.579939928715328, rel=1e-12)
 
 
 def test_fractions_that_are_not_a_schedule_are_refused() -> None:
