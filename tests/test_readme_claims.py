@@ -24,6 +24,7 @@ from mktlab.attribution import (
     shapley,
     unattributable,
 )
+from mktlab.calibration import average_to_marginal, calibrate, prior_from_holdout
 from mktlab.design import (
     DEFAULT_POWER,
     RULES,
@@ -1159,3 +1160,339 @@ def test_the_model_against_the_holdout_is_what_is_published(full: Dataset) -> No
     )
     assert resolved_by_holdout == 3
     assert resolved_by_model == 1
+
+
+# --- Wave 6: the calibration, from src/mktlab/calibration/README.md ----------------------------
+
+
+def wave_six_priors(
+    full: Dataset, channels: list[str], convert: bool = True
+) -> tuple[object, dict]:
+    """The fit and the priors the wave 6 document is built on."""
+    baseline = mmm_fit(full.spend_panel)
+    priors = {}
+    for channel in channels:
+        profile = next(item for item in CHANNELS if item.channel == channel)
+        panel = full.geo_experiments[full.geo_experiments["channel"] == channel]
+        lift = geo_lift(panel, split=GEO.split, channel=channel)
+        priors[channel] = prior_from_holdout(
+            lift,
+            baseline,
+            channel,
+            reach=float(AUDIENCE.users),
+            spend=profile.spend,
+            convert=convert,
+        )
+    return baseline, priors
+
+
+WAVE_SIX_RESOLVED = ["social-pago", "email", "busca-generica"]
+
+
+def test_the_average_to_marginal_factors_are_what_is_published(full: Dataset) -> None:
+    """Result 1: the closed form, the four rows of its table, and the generator's own ratio."""
+    published = {0.5: 3.0000, 1.3: 1.7692, 3.0: 1.3333, 10.0: 1.1000}
+    for multiple, factor in published.items():
+        assert average_to_marginal(multiple) == pytest.approx(factor, abs=5e-5), multiple
+    assert average_to_marginal(MEDIA_MIX.saturation_at) == pytest.approx(1.7692307692, abs=5e-11)
+    truth = full.media_truth.set_index("channel")
+    for channel in WAVE_SIX_RESOLVED:
+        ratio = float(truth.loc[channel, "conversions_per_unit_spend"]) / float(
+            truth.loc[channel, "marginal_conversions_per_unit_spend"]
+        )
+        # To the ten digits the document prints. The closed form and the generator agree far past
+        # that - the identity is checked exactly in tests/test_calibration.py - but a published
+        # constant can only be asserted to the precision it was published at.
+        assert ratio == pytest.approx(1.7692307692, abs=5e-11), channel
+
+
+def test_the_published_priors_are_what_the_holdouts_produce(full: Dataset) -> None:
+    """Result 2, first table: every column of the three priors the document quotes."""
+    published = {
+        "social-pago": (0.032318, 0.018267, 1.0773, 124.3418, 3.5633),
+        "email": (0.046058, 0.026033, 1.4393, 20.2596, 3.8282),
+        "busca-generica": (0.011814, 0.006678, 0.9451, 30.9328, 3.7726),
+    }
+    _, priors = wave_six_priors(full, WAVE_SIX_RESOLVED)
+    truth = full.media_truth.set_index("channel")
+    for channel, (average, marginal, times, mean, error) in published.items():
+        prior = priors[channel]
+        assert prior.average_return == pytest.approx(average, abs=5e-7), channel
+        assert prior.marginal_return == pytest.approx(marginal, abs=5e-7), channel
+        assert prior.conversion_factor == pytest.approx(1.769231, abs=5e-7), channel
+        real = float(truth.loc[channel, "marginal_conversions_per_unit_spend"])
+        assert prior.marginal_return / real == pytest.approx(times, abs=5e-5), channel
+        assert prior.mean == pytest.approx(mean, abs=5e-5), channel
+        assert prior.standard_error == pytest.approx(error, abs=5e-5), channel
+
+
+def test_the_calibration_table_is_what_is_published(full: Dataset) -> None:
+    """Result 2, second table: the prior, the model, the posterior and the width kept."""
+    published = {
+        "social-pago": (124.3418, 14.1479, 139.3700, 189.5556, 124.3782, 14.0984, 0.0744),
+        "email": (20.2596, 15.2000, 5.7788, 198.5230, 20.1673, 15.1464, 0.0763),
+        "busca-generica": (30.9328, 14.9793, 18.5883, 176.0132, 30.8354, 14.9135, 0.0847),
+    }
+    unpriored = {
+        "busca-marca": (-16.6503, 185.0894, -25.2209, 139.2410, 0.7523),
+        "retargeting": (2.7547, 168.5260, -1.1745, 136.3520, 0.8091),
+    }
+    _, priors = wave_six_priors(full, WAVE_SIX_RESOLVED)
+    table = calibrate(full.spend_panel, priors).table().set_index("channel")
+    for channel, values in published.items():
+        prior_mean, prior_width, model, model_width, posterior, width, kept = values
+        row = table.loc[channel]
+        assert float(row["prior_mean"]) == pytest.approx(prior_mean, abs=5e-5), channel
+        assert float(row["prior_width"]) == pytest.approx(prior_width, abs=5e-5), channel
+        assert float(row["model_mean"]) == pytest.approx(model, abs=5e-5), channel
+        assert float(row["model_width"]) == pytest.approx(model_width, abs=5e-5), channel
+        assert float(row["posterior_mean"]) == pytest.approx(posterior, abs=5e-5), channel
+        assert float(row["posterior_width"]) == pytest.approx(width, abs=5e-5), channel
+        assert float(row["width_kept"]) == pytest.approx(kept, abs=5e-5), channel
+        # The document's claim that the model's own contribution rounds to nothing on these three.
+        assert abs(posterior - prior_mean) / abs(prior_mean) < 0.005, channel
+    for channel, values in unpriored.items():
+        model, model_width, posterior, width, kept = values
+        row = table.loc[channel]
+        assert np.isnan(float(row["prior_mean"])), channel
+        assert float(row["model_mean"]) == pytest.approx(model, abs=5e-5), channel
+        assert float(row["model_width"]) == pytest.approx(model_width, abs=5e-5), channel
+        assert float(row["posterior_mean"]) == pytest.approx(posterior, abs=5e-5), channel
+        assert float(row["posterior_width"]) == pytest.approx(width, abs=5e-5), channel
+        assert float(row["width_kept"]) == pytest.approx(kept, abs=5e-5), channel
+
+
+def test_the_transfer_resolves_three_of_five_and_covers_four(full: Dataset) -> None:
+    """Result 2 and Result 3: the counts, the returns, and the fit the transfer costs."""
+    published = {
+        "social-pago": (0.018272, 0.017237, 0.019308, False, 1.0776, 0.1221, True),
+        "email": (0.025914, 0.016183, 0.035645, True, 1.4327, 1.0760, True),
+        "busca-generica": (0.006657, 0.005047, 0.008266, True, 0.9422, 0.4557, True),
+    }
+    baseline, priors = wave_six_priors(full, WAVE_SIX_RESOLVED)
+    calibrated = calibrate(full.spend_panel, priors)
+    table = calibrated.transfer(full.media_truth).set_index("channel")
+    for channel, values in published.items():
+        estimate, low, high, covers, times, width, resolved = values
+        row = table.loc[channel]
+        assert float(row["posterior_return"]) == pytest.approx(estimate, abs=5e-7), channel
+        assert float(row["low"]) == pytest.approx(low, abs=5e-7), channel
+        assert float(row["high"]) == pytest.approx(high, abs=5e-7), channel
+        assert bool(row["covers_truth"]) is covers, channel
+        assert float(row["times_the_truth"]) == pytest.approx(times, abs=5e-5), channel
+        assert float(row["interval_width_over_truth"]) == pytest.approx(width, abs=5e-5), channel
+        assert bool(row["resolved"]) is resolved, channel
+    for channel, low, high in (
+        ("busca-marca", -0.027101, 0.012687),
+        ("retargeting", -0.030061, 0.029043),
+    ):
+        row = table.loc[channel]
+        assert float(row["low"]) == pytest.approx(low, abs=5e-7), channel
+        assert float(row["high"]) == pytest.approx(high, abs=5e-7), channel
+        assert bool(row["covers_truth"]), channel
+        assert not bool(row["resolved"]), channel
+
+    assert int(table["resolved"].sum()) == 3
+    assert int(table["covers_truth"].sum()) == 4
+    before = baseline.returns(full.media_truth)
+    resolved_before = sum(
+        1 for low, high in zip(before["low"], before["high"], strict=True) if low > 0 or high < 0
+    )
+    assert resolved_before == 1
+    assert int(before["covers_truth"].sum()) == 5
+    assert baseline.r_squared == pytest.approx(0.836425, abs=5e-7)
+    assert calibrated.posterior.r_squared == pytest.approx(0.836050, abs=5e-7)
+    assert baseline.r_squared - calibrated.posterior.r_squared == pytest.approx(0.000374, abs=5e-7)
+
+
+def test_the_lost_coverage_was_inherited_from_the_holdout(full: Dataset) -> None:
+    """Result 3: the holdout's own interval on the average return, and the weight it carried."""
+    published = {
+        "social-pago": (0.030442, 0.034194, 0.030000, False),
+        "email": (0.028433, 0.063682, 0.032000, True),
+        "busca-generica": (0.008897, 0.014731, 0.012500, True),
+    }
+    baseline, priors = wave_six_priors(full, WAVE_SIX_RESOLVED)
+    for channel, (low, high, average_truth, covers) in published.items():
+        profile = next(item for item in CHANNELS if item.channel == channel)
+        panel = full.geo_experiments[full.geo_experiments["channel"] == channel]
+        lift = geo_lift(panel, split=GEO.split, channel=channel)
+        scale = AUDIENCE.users / profile.spend
+        interval = (lift.interval[0] * scale, lift.interval[1] * scale)
+        assert interval[0] == pytest.approx(low, abs=5e-7), channel
+        assert interval[1] == pytest.approx(high, abs=5e-7), channel
+        assert bool(interval[0] <= average_truth <= interval[1]) is covers, channel
+
+    index = baseline.channels.index("social-pago")
+    model_precision = 1.0 / float(baseline.standard_errors[index]) ** 2
+    prior_precision = 1.0 / priors["social-pago"].standard_error ** 2
+    weight = model_precision / (model_precision + prior_precision)
+    assert weight == pytest.approx(0.0055, abs=5e-5)
+    # And the model's own interval did cover the truth it was overruled about.
+    low, high = (
+        baseline.returns(full.media_truth).set_index("channel").loc["social-pago", ["low", "high"]]
+    )
+    assert float(low) <= 0.016957 <= float(high)
+
+
+def test_the_naive_calibration_is_what_is_published(full: Dataset) -> None:
+    """Result 4: one skipped division, four channels resolved and one covering interval."""
+    published = {
+        "social-pago": (0.031988, 1.8865, False, True),
+        "email": (0.044009, 2.4332, False, True),
+        "busca-generica": (0.011393, 1.6126, False, True),
+    }
+    _, priors = wave_six_priors(full, WAVE_SIX_RESOLVED, convert=False)
+    calibrated = calibrate(full.spend_panel, priors)
+    table = calibrated.transfer(full.media_truth).set_index("channel")
+    for channel, (estimate, times, covers, resolved) in published.items():
+        row = table.loc[channel]
+        assert float(row["posterior_return"]) == pytest.approx(estimate, abs=5e-7), channel
+        assert float(row["times_the_truth"]) == pytest.approx(times, abs=5e-5), channel
+        assert bool(row["covers_truth"]) is covers, channel
+        assert bool(row["resolved"]) is resolved, channel
+    # The manufactured finding: a confident negative return on a channel whose truth is zero.
+    marca = table.loc["busca-marca"]
+    assert float(marca["low"]) == pytest.approx(-0.045283, abs=5e-7)
+    assert float(marca["high"]) == pytest.approx(-0.005099, abs=5e-7)
+    assert float(marca["high"]) < 0.0
+    assert bool(marca["resolved"])
+    assert not bool(marca["covers_truth"])
+    assert int(table["resolved"].sum()) == 4
+    assert int(table["covers_truth"].sum()) == 1
+    assert calibrated.posterior.r_squared == pytest.approx(0.824520, abs=5e-7)
+
+
+def test_a_null_holdout_buys_what_is_published(full: Dataset) -> None:
+    """Result 5: the two channels the holdout could not resolve, used as priors anyway."""
+    published = {
+        "retargeting": (168.5260, 11.8594, 0.0704, 0.000742, -0.001828, 0.003313),
+        "busca-marca": (185.0894, 16.8217, 0.0909, 0.001632, -0.000771, 0.004035),
+    }
+    _, priors = wave_six_priors(full, ["retargeting", "busca-marca"])
+    calibrated = calibrate(full.spend_panel, priors)
+    table = calibrated.table().set_index("channel")
+    transferred = calibrated.transfer(full.media_truth).set_index("channel")
+    for channel, (model_width, width, kept, estimate, low, high) in published.items():
+        assert float(table.loc[channel, "model_width"]) == pytest.approx(model_width, abs=5e-5), (
+            channel
+        )
+        assert float(table.loc[channel, "posterior_width"]) == pytest.approx(width, abs=5e-5), (
+            channel
+        )
+        assert float(table.loc[channel, "width_kept"]) == pytest.approx(kept, abs=5e-5), channel
+        assert float(transferred.loc[channel, "posterior_return"]) == pytest.approx(
+            estimate, abs=5e-7
+        ), channel
+        assert float(transferred.loc[channel, "low"]) == pytest.approx(low, abs=5e-7), channel
+        assert float(transferred.loc[channel, "high"]) == pytest.approx(high, abs=5e-7), channel
+        assert bool(transferred.loc[channel, "covers_truth"]), channel
+        assert not bool(transferred.loc[channel, "resolved"]), channel
+        assert 11.0 <= 1.0 / kept <= 14.5, channel
+
+
+def test_one_prior_moves_every_other_channel_by_what_is_published(full: Dataset) -> None:
+    """Result 6: the spillover table, and that the widths moved by less than five per cent."""
+    published = {
+        "social-pago": (0.020475, 0.018279, 0.8928, 0.0744),
+        "email": (0.007425, 0.013037, 1.7558, 0.9605),
+        "retargeting": (0.001194, 0.002780, 2.3282, 0.9616),
+        "busca-generica": (0.004013, 0.004895, 1.2199, 0.9559),
+        "busca-marca": (-0.004758, -0.004224, 0.8878, 0.9918),
+    }
+    baseline, priors = wave_six_priors(full, ["social-pago"])
+    calibrated = calibrate(full.spend_panel, priors)
+    before = baseline.returns(full.media_truth).set_index("channel")
+    after = calibrated.transfer(full.media_truth).set_index("channel")
+    widths = calibrated.table().set_index("channel")
+    for channel, (ols, posterior, moved, kept) in published.items():
+        assert float(before.loc[channel, "marginal_return"]) == pytest.approx(ols, abs=5e-7), (
+            channel
+        )
+        assert float(after.loc[channel, "posterior_return"]) == pytest.approx(
+            posterior, abs=5e-7
+        ), channel
+        ratio = float(after.loc[channel, "posterior_return"]) / float(
+            before.loc[channel, "marginal_return"]
+        )
+        assert ratio == pytest.approx(moved, abs=5e-5), channel
+        assert float(widths.loc[channel, "width_kept"]) == pytest.approx(kept, abs=5e-5), channel
+        if channel != "social-pago":
+            assert float(widths.loc[channel, "width_kept"]) > 0.95, channel
+
+
+def test_the_single_prior_identity_is_exact_and_several_are_bounded(full: Dataset) -> None:
+    """Result 6's closed form: Sherman-Morrison exactly, and under two per cent of leak."""
+    _, one = wave_six_priors(full, ["social-pago"])
+    single = calibrate(full.spend_panel, one)
+    table = single.table().set_index("channel")
+    assert float(table.loc["social-pago", "posterior_width"]) == pytest.approx(
+        single.independent_widths["social-pago"], rel=1e-12
+    )
+    _, five = wave_six_priors(full, [profile.channel for profile in CHANNELS])
+    everything = calibrate(full.spend_panel, five)
+    widths = everything.table().set_index("channel")
+    for channel in everything.posterior.channels:
+        actual = float(widths.loc[channel, "posterior_width"])
+        identity = everything.independent_widths[channel]
+        assert actual <= identity
+        assert (identity - actual) / identity < 0.02, channel
+
+
+def test_the_saturation_grid_is_what_is_published(full: Dataset) -> None:
+    """Result 7: the four rows, and the two claims the wave ends on."""
+    published = {
+        0.5: (3.0000, 0.835689, 0.000754, 0.010796, 0.64, 0.0722),
+        1.3: (1.7692, 0.836425, 0.000019, 0.018272, 1.08, 0.1221),
+        3.0: (1.3333, 0.836444, 0.000000, 0.024157, 1.42, 0.1616),
+        10.0: (1.1000, 0.836148, 0.000295, 0.029132, 1.72, 0.1953),
+    }
+    measured = {}
+    for multiple in published:
+        fitted = mmm_fit(full.spend_panel, saturation_at=multiple)
+        priors = {}
+        for channel in WAVE_SIX_RESOLVED:
+            profile = next(item for item in CHANNELS if item.channel == channel)
+            panel = full.geo_experiments[full.geo_experiments["channel"] == channel]
+            priors[channel] = prior_from_holdout(
+                geo_lift(panel, split=GEO.split, channel=channel),
+                fitted,
+                channel,
+                reach=float(AUDIENCE.users),
+                spend=profile.spend,
+            )
+        row = (
+            calibrate(full.spend_panel, priors, saturation_at=multiple)
+            .transfer(full.media_truth)
+            .set_index("channel")
+            .loc["social-pago"]
+        )
+        measured[multiple] = (fitted.r_squared, row)
+
+    best = max(value[0] for value in measured.values())
+    for multiple, values in published.items():
+        factor, r_squared, loss, estimate, times, width = values
+        fitted_r, row = measured[multiple]
+        assert average_to_marginal(multiple) == pytest.approx(factor, abs=5e-5), multiple
+        assert fitted_r == pytest.approx(r_squared, abs=5e-7), multiple
+        assert best - fitted_r == pytest.approx(loss, abs=5e-7), multiple
+        assert float(row["posterior_return"]) == pytest.approx(estimate, abs=5e-7), multiple
+        assert float(row["times_the_truth"]) == pytest.approx(times, abs=5e-3), multiple
+        assert float(row["interval_width_over_truth"]) == pytest.approx(width, abs=5e-5), multiple
+        assert not bool(row["covers_truth"]), multiple
+
+    # The two claims the document ends on: the best fit is not the true one, and the spread in the
+    # answer is the spread in the conversion factor.
+    best_multiple = max(measured, key=lambda key: measured[key][0])
+    assert best_multiple == 3.0
+    # The spread in the answer is nearly the spread in the conversion factor, and not exactly it:
+    # changing the saturation point also changes the model's own design. The document says "nearly
+    # all of it" because of this line, which is what the first draft claimed was an equality.
+    times = [float(row["times_the_truth"]) for _, row in measured.values()]
+    factor_spread = average_to_marginal(0.5) / average_to_marginal(10.0)
+    assert max(times) / min(times) == pytest.approx(2.70, abs=5e-3)
+    assert factor_spread == pytest.approx(2.73, abs=5e-3)
+    assert max(times) / min(times) < factor_spread
+    assert max(value[0] for value in measured.values()) - min(
+        value[0] for value in measured.values()
+    ) == pytest.approx(0.000754, abs=5e-7)

@@ -144,6 +144,50 @@ que nenhum modelo real recebe.
   resolveu um e não custou nada. Isso é uma troca, não um veredito — e só um dos dois instrumentos
   costuma ser apresentado com sua largura em anexo.
 
+## E a forma honesta de usar os dois deixa o modelo tão certo quanto o experimento, exatamente
+
+Sobra uma escolha que ninguém quer: o holdout é estreito, caro e cobre três canais; o modelo é
+gratuito, cobre cinco e é treze vezes mais largo. A construção que recusa a escolha é usar os dois —
+a estimativa do experimento entra no modelo como priori sobre o coeficiente. Funciona, e o que ela
+traz junto com a precisão é o assunto da onda.
+
+- **Os dois instrumentos não estimam a mesma quantidade, e a ponte entre eles é um parâmetro que os
+  dados não resolvem.** Um holdout mede o retorno médio no período; um coeficiente é o retorno
+  marginal no investimento atual. Para uma resposta que dobra, a razão é exatamente **1 + 1/k** no
+  ponto de saturação — 1,7692307692 no 1,30 do gerador, que é a razão entre as duas colunas de
+  retorno declaradas do próprio gerador com doze dígitos, vinda de código que não compartilha nada
+  com a fórmula. Na faixa de saturação que a onda 5 mostrou que o ajuste não distingue, esse fator vai
+  de **3,0 a 1,1**.
+- **Funciona: três canais em cinco resolvidos em vez de um, doze a treze vezes mais estreitos.** E as
+  médias da posteriori caem a menos de meio por cento das prioris, então a contribuição do próprio
+  modelo para esses três canais arredonda para nada. O ajuste dentro da amostra se move **0,000374**
+  de R-quadrado, e é por isso que ajuste não julga uma calibração em nenhuma direção.
+- **E ela abriu mão de um intervalo que cobria.** Cinco de cinco intervalos cobriam a verdade antes,
+  quatro de cinco depois. Nada foi fabricado: um intervalo de 95% erra uma vez em vinte, a onda 1
+  calculou cinco, e o de social-pago é o tal. O intervalo do próprio modelo **cobria** a verdade e foi
+  derrubado mesmo assim, carregando **0,55%** do peso. Calibração não é uma forma de acertar mais
+  vezes que o experimento — é uma forma de acertar tanto quanto ele, barato, e de errar exatamente
+  tanto.
+- **Pule a conversão de unidade e a mesma maquinaria fabrica uma resposta errada e confiante.** Uma
+  divisão de fora: quatro canais resolvidos em vez de três, **um intervalo em cinco cobrindo a
+  verdade**, toda estimativa inflada por cerca do fator que ficou de fora, e busca-marca — efeito
+  verdadeiro exatamente zero — com um intervalo que exclui o zero *por baixo*. Precisão e viés se
+  transferem com a mesma eficiência.
+- **Um resultado nulo era a coisa mais precisa que alguém sabia sobre os dois canais que ele "não
+  conseguiu resolver".** Usados como prioris, retargeting e busca-marca mantêm **7,0% e 9,1%** de sua
+  largura, os dois intervalos cobrem a verdade de zero, e nenhum é falsamente resolvido. O resultado
+  inconclusivo nunca foi uma ausência; era uma estimativa com erro-padrão onze a catorze vezes mais
+  estreito que o do modelo.
+- **E uma priori sobre um canal não é uma afirmação sobre um canal.** Um experimento, só em
+  social-pago: o retorno reportado de email se move **1,76×** e o de retargeting **2,33×** — enquanto
+  toda largura ao lado se move menos de cinco por cento. A transferência chega como um deslocamento
+  de posição que nada no gráfico marca.
+- **E então tudo isso se apoia no parâmetro que o ajuste não vê.** Repita a transferência em quatro
+  pontos de saturação que se distinguem por **0,000754** de R-quadrado e a resposta calibrada vai de
+  **0,64× a 1,72×** a verdade. O ponto de melhor ajuste não é o verdadeiro: é k = 3,0, devolvendo
+  1,42× a verdade. Um praticante que escolhe o ponto de saturação pelo ajuste — a única forma de
+  escolher — aterrissa ali.
+
 ## Módulos
 
 | Módulo | O que decide |
@@ -151,6 +195,7 @@ que nenhum modelo real recebe.
 | [`mktlab.attribution`](src/mktlab/attribution/README.md) | Quem leva o crédito sob seis modelos, o que um holdout geográfico diz em vez disso, e a diferença entre o ROAS e sua versão incremental. |
 | [`mktlab.design`](src/mktlab/design/README.md) | Se o teste vale ser rodado, se está sendo lido do jeito para o qual foi dimensionado, e o que o plano de leitura deveria dizer. Três documentos: [dimensionamento](src/mktlab/design/README-sizing.md) — a precisão que ele terá, o menor **retorno** que consegue estabelecer, quanto custa se o canal funcionar, e o que um resultado nulo já descartou; [leituras repetidas](src/mktlab/design/README-sequential.md) — o que uma olhada semanal faz com a taxa de erro, quanto custam as duas fronteiras honestas, e quanto uma parada antecipada infla o número que você reporta; e [monitoramento](src/mktlab/design/README-monitoring.md) — um cronograma de gasto de alfa para olhadas que ninguém combinou antes, e uma fronteira de futilidade que encerra um teste que não vai dar em nada. |
 | [`mktlab.mmm`](src/mktlab/mmm/README.md) | O que uma regressão de conversões sobre investimento consegue sustentar quando ninguém aceita desligar uma região: se o plano de investimento permite alguma resposta, quanto da resposta veio dos transformes que foram adivinhados, e como a largura se compara com o experimento que ele substitui. |
+| [`mktlab.calibration`](src/mktlab/calibration/README.md) | Se o experimento já rodado consegue tornar o modelo utilizável, o que a transferência traz junto com a precisão, e o que ainda tem de ser suposto para mover uma resposta de um instrumento para o outro. |
 
 Todo README de módulo é bilíngue e traz uma seção **Premissas e limitações**, porque uma cifra sem
 suas premissas não é um resultado.
@@ -164,6 +209,7 @@ suas premissas não é um resultado.
 | [`examples/03_the_test_read_every_monday.py`](examples/03_the_test_read_every_monday.py) | O mesmo holdout outra vez, lido semanalmente em vez de uma só vez: a taxa de erro que isso custa, as duas fronteiras que corrigem, quanto custam em regiões, e a estimativa lisonjeira que nenhuma das duas corrige. |
 | [`examples/04_the_plan_nobody_wrote.py`](examples/04_the_plan_nobody_wrote.py) | O plano de monitoramento com o qual o holdout deveria ter chegado: a mesma taxa de erro gasta em quatro calendários de leitura diferentes, a fronteira de futilidade escrita semana a semana, e quanto custa o direito de desistir. |
 | [`examples/05_the_model_that_replaces_the_experiment.py`](examples/05_the_model_that_replaces_the_experiment.py) | O modelo construído quando o holdout é recusado, na mesma conta e recebendo os transformes do próprio gerador: o que o plano de investimento já decidiu, o único canal que ele resolve, a faixa que ajusta igualmente bem, e o que a má especificação que todo modelo real tem faz com os sinais. |
+| [`examples/06_the_experiment_the_model_believes.py`](examples/06_the_experiment_the_model_believes.py) | O holdout colocado no modelo como priori: a conversão de unidade entre os dois instrumentos, o que uma conversão pulada compra, o erro do próprio experimento depois que o modelo acredita nele, e o que uma priori faz com os quatro canais que ninguém mediu. |
 
 ## Instalar e rodar
 
@@ -176,12 +222,13 @@ python examples/02_the_test_nobody_sized.py
 python examples/03_the_test_read_every_monday.py
 python examples/04_the_plan_nobody_wrote.py
 python examples/05_the_model_that_replaces_the_experiment.py
+python examples/06_the_experiment_the_model_believes.py
 ```
 
 ## Como as afirmações são mantidas honestas
 
-**339 testes, 100% de cobertura de linhas e de ramos.** 279 deles rodam em segundos e liberam cada
-push. Os 60 restantes re-derivam, a partir do gerador, toda cifra citada em todo README deste
+**377 testes, 100% de cobertura de linhas e de ramos.** 306 deles rodam em segundos e liberam cada
+push. Os 71 restantes re-derivam, a partir do gerador, toda cifra citada em todo README deste
 repositório, e rodam todo script de exemplo. Uma mudança que mova um número publicado quebra o build
 em vez de deixar o texto silenciosamente errado.
 
@@ -206,7 +253,7 @@ Três disciplinas, cada uma adotada depois de ter pegado algo:
    e não de qual versão de biblioteca responde. Essa regra é verificada contra o código-fonte,
    porque a primeira versão deste repositório publicou cifras que valiam numa máquina e mudavam numa
    instalação limpa.
-3. **Conectar os módulos encontra defeitos que escrever mais módulos não encontra.** Quinze dos dezessete
+3. **Conectar os módulos encontra defeitos que escrever mais módulos não encontra.** Dezenove dos vinte e um
    defeitos registrados até aqui foram achados escrevendo um exemplo, um caso de controle ou uma
    frase — não lendo código. As duas exceções foram um relatório de cobertura mostrando um ramo que
    nenhum teste alcançava, e uma instalação limpa que não reproduziu as cifras publicadas. Eles estão registrados na documentação do módulo em vez de corrigidos em silêncio — a

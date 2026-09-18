@@ -225,7 +225,9 @@ one of them is usually presented with its width attached.
   squares makes them arithmetic instead of diagnostics. What a prior adds is information the data does
   not contain, which is sometimes the right thing to do and is never free. A hierarchical model with a
   tight prior on the coefficients would report narrower intervals on this panel without the panel
-  having become more informative.
+  having become more informative. [`mktlab.calibration`](../calibration/README.md) measures exactly
+  that, with the one prior that has a warrant behind it - an experiment's estimate - and prices what
+  the transfer carries in along with the precision.
 - **The model is handed the true transforms in Results 1 to 4, and that is a favour.** A real
   practitioner picks them, usually by fit, and Result 5 is what that costs. Every width in Result 2 is
   therefore a floor.
@@ -495,7 +497,10 @@ apresentado com sua largura anexada.
   mínimos quadrados as torna aritmética em vez de diagnóstico. O que uma priori acrescenta é informação
   que os dados não contêm, o que às vezes é a coisa certa a fazer e nunca é grátis. Um modelo
   hierárquico com priori apertada sobre os coeficientes reportaria intervalos mais estreitos neste
-  painel sem que o painel tenha ficado mais informativo.
+  painel sem que o painel tenha ficado mais informativo. O
+  [`mktlab.calibration`](../calibration/README.md) mede exatamente isso, com a única priori que tem
+  lastro — a estimativa de um experimento — e precifica o que a transferência traz junto com a
+  precisão.
 - **O modelo recebe os transformes verdadeiros nos Resultados 1 a 4, e isso é um favor.** Um
   praticante real os escolhe, normalmente por ajuste, e o Resultado 5 é o que isso custa. Toda largura
   do Resultado 2 é, portanto, um piso.

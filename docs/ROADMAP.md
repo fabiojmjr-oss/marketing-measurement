@@ -253,6 +253,65 @@ parameter that barely moves the answer. The grid says which half of the slogan i
    conclusion, which is precisely why each would have survived; all four are now quoted from the
    claim tests instead of from memory.
 
+## Wave 6 — the experiment the model believes *(complete)*
+
+Wave 5 ended in a choice: a narrow, expensive holdout covering three channels, or a free model
+covering five and thirteen times wider. This wave builds the construction that refuses the choice -
+the experiment's estimate entering the model as a prior on the coefficient - and prices everything the
+transfer carries with it.
+
+| Delivered | Where |
+| --- | --- |
+| The average-to-marginal bridge in closed form, `1 + 1/k`, and the refusal when `k` is not a curve | `calibration.average_to_marginal` |
+| The saturation point read back off the fit, so the conversion uses the model's own assumption | `calibration.saturation_multiple` |
+| A holdout turned into a prior on a coefficient, with every step of the chain named | `calibration.Prior`, `prior_from_holdout` |
+| The conjugate normal update with a diagonal prior precision, zero where nothing is claimed | `calibration.calibrate` |
+| The posterior as a fit, so every table least squares can produce is available on the same terms | `Calibrated.posterior`, `table`, `transfer` |
+| What each width would have been had precisions simply added, exact for one prior and a bound for several | `Calibrated.independent_widths` |
+
+**The thread, at its sixth level and the end of the arc.** Wave 1: the figure a report shows is a
+correct calculation of the wrong quantity. Wave 2: the test meant to fix that is sized against the
+wrong quantity. Wave 3: it is not read the way it was sized. Wave 4: the plan that repairs the reading
+has a price. Wave 5: the instrument built to avoid that price is eleven to thirteen times wider than
+the test it replaces. Wave 6: the construction that combines them works exactly as advertised - and
+**what it transfers is precision, not accuracy.** The experiment's own sampling error becomes the
+model's, the data loses the ability to object to it, and the bridge between the two instruments is a
+parameter wave 5 proved the fit cannot settle.
+
+**Wave 6 adds no draws to the generator.** It reads the panel and the holdouts waves 1 and 5 already
+published, so no figure in any earlier document can move because this module exists - which is
+asserted by a test rather than asserted in prose.
+
+The result I did not expect is Result 5. The two channels the holdout "could not resolve" turn out to
+carry the most precise information anybody had about them: used as priors they cut the model's width
+to seven and nine per cent, both intervals cover the truth of zero, and neither is falsely resolved. A
+null result reported as inconclusive and then dropped is an estimate with a standard error being
+thrown away.
+
+### Defects found and recorded
+
+1. **A published claim that two spreads were equal, when they are merely close.** The document said
+   the spread in the calibrated answer across saturation points *is* the spread in the conversion
+   factor. It is 2.70 against 2.73: changing the saturation point also changes the model's own design,
+   not only the bridge. The claim tests now assert both numbers and the inequality between them, and
+   the document says "nearly all of it". Found by writing the test for a sentence I had already
+   published - which is the third time in this repository that the test for a claim was what disproved
+   it.
+2. **A range about the transfer that included the channels the transfer did not touch.** The example
+   printed "between 1 and 13 times the precision", because the minimum was taken over all five
+   channels and the two with no prior also narrow, through the correlation. The range is now taken
+   over the channels the experiment covered, which is what the sentence beside it claims. Found by
+   reading the example's own output.
+3. **Result 5's table was computed from a different fit than its prose described.** The prose says the
+   two null priors are the only ones in the fit, so that nothing else is doing the work; the figures
+   came from a run where all five channels had priors. The numbers were not wrong, they were answers
+   to a different question - and they differed in the third digit, which is exactly the size of error
+   that survives review. Found by the claims test disagreeing with the document.
+4. **A standard error rounded the wrong way in a published table**, 3.7727 for 3.772649, and a
+   published constant asserted to more digits than it was printed at. Both were caught by the claims
+   suite on its first run, which is the argument for the discipline: the figures in these tables are
+   not proofread, they are executed.
+
 ## What is deliberately not here
 
 - **No market statistics, industry benchmarks or third-party figures.** Every number in this
@@ -260,10 +319,16 @@ parameter that barely moves the answer. The grid says which half of the slogan i
   test, and this repository's only real discipline is that its figures are asserted.
 - **No platform API clients.** Nothing here reads an advertising account, and nothing is designed
   to. See [`DISCLAIMER.md`](../DISCLAIMER.md).
-- **No Bayesian media mix model, and no priors.** Wave 5's model is ordinary least squares on
-  purpose: a prior narrows an interval, and the point of the wave is how wide the interval honestly
-  is before anybody narrows it. A prior that does the narrowing is the next wave's subject, not a
-  way to improve this one's figures.
+- **No prior that did not come from an experiment.** Wave 6 uses one, and only of that kind. A prior
+  from judgement, from last year's model or from a vendor's benchmark narrows an interval by exactly
+  the same arithmetic and with none of the warrant - which is the case Result 4 of that wave measures
+  by breaking the warrant on purpose. Wave 5's least squares fit stays as it is, because how wide the
+  interval is before anybody narrows it is the thing that document exists to show.
+- **No fully Bayesian or hierarchical treatment.** The update in wave 6 plugs in the residual
+  variance from the least squares fit and does not propagate its uncertainty, and the prior is
+  diagonal. A hierarchical model pooling channels or geographies would be a different repository's
+  worth of work, and it would not change any conclusion here: every pathology these documents measure
+  shows up there as posterior correlation instead of as an inflated standard error.
 - **No budget optimiser.** An optimiser on top of wave 5's coefficients would return a confident
   allocation from a model that distinguishes one channel of five from zero, which is the failure the
   wave documents rather than a feature to build on it.
@@ -286,14 +351,21 @@ parameter that barely moves the answer. The grid says which half of the slogan i
 - **Information time estimated rather than assumed.** A spending function evaluated at a mis-stated
   information fraction spends the wrong amount of error, and in a geo test the fraction has to be
   inferred from the same accumulation that drives the statistic.
-- **Calibrating the model with the experiment instead of choosing between them.** Wave 5 compares
-  the two instruments and stops there. The interesting construction is the holdout's average return
-  entering the model as information about the coefficient — which is what an informative prior is
-  for, and is the honest use of a test that resolved three channels of five.
-- **Out-of-sample validation, because every fit figure in wave 5 is in-sample.** A fit loss of
-  0.0047 between two carryover values says the data prefers one; it does not say the preference
+- **Out-of-sample validation, because every fit figure in waves 5 and 6 is in-sample.** A fit loss
+  of 0.0047 between two carryover values says the data prefers one; it does not say the preference
   would survive on weeks the model has not seen, and a rolling-origin evaluation is how that is
-  settled.
+  settled. Wave 6 sharpens the question rather than answering it: the calibrated model is always the
+  worse in-sample fit, including when it is the closer answer, so in-sample fit cannot adjudicate a
+  calibration in either direction and something else has to.
+- **A prior with a covariance, from an experiment programme rather than one test.** Wave 6's prior is
+  diagonal, one channel at a time. A holdout that switched two channels off at once measures them
+  jointly, and the covariance between those estimates is information the transfer currently discards
+  - which matters precisely because Result 6 shows how far a single channel's prior travels through
+  the correlation.
+- **The saturation point estimated from something other than fit.** Wave 6 ends on a practitioner
+  choosing `k` by fit and landing 1.42 times from the truth. Spend that varies enough within a channel
+  to trace its own response curve would identify it; so would an experiment run at two spend levels.
+  Both are designs, not analyses, which is where this arc keeps arriving.
 - **Spend that was set by the answer.** The panel's budget swings for reasons unrelated to how the
   channels perform. Real plans move spend towards what last quarter's report credited, which puts
   the model's own output on the right-hand side of its next fit.

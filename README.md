@@ -142,6 +142,49 @@ and handed **the generator's own carryover and saturation** — a favour no real
   the model resolved one and cost nothing. That is a trade, not a verdict — and only one of the two
   instruments is usually presented with its width attached.
 
+## And the honest way to use both makes the model as right as the experiment, exactly
+
+That leaves a choice nobody wants: the holdout is narrow, expensive and covers three channels; the
+model is free, covers five and is thirteen times wider. The construction that refuses the choice is
+to use both — the experiment's estimate enters the model as a prior on the coefficient. It works, and
+what it carries in with the precision is the wave's subject.
+
+- **The two instruments do not estimate the same quantity, and the bridge between them is a
+  parameter the data cannot settle.** A holdout measures the average return over the period; a
+  coefficient is the marginal return at current spend. For a bending response the ratio is exactly
+  **1 + 1/k** in the saturation point — 1.7692307692 at the generator's 1.30, which is the
+  generator's own ratio of its two declared return columns to twelve digits, from code that shares
+  nothing with the formula. Across the saturation range wave 5 showed the fit cannot distinguish,
+  that factor runs from **3.0 to 1.1**.
+- **It works: three channels of five resolved instead of one, twelve to thirteen times tighter.** And
+  the posterior means land within half a per cent of the priors, so the model's own contribution to
+  those three channels rounds to nothing. In-sample fit moves by **0.000374** of R-squared, which is
+  why fit cannot adjudicate a calibration in either direction.
+- **And it gave up a covering interval.** Five of five intervals covered the truth before, four of
+  five after. Nothing was manufactured: a 95% interval is wrong one time in twenty, wave 1 computed
+  five, and social-pago's is the one. The model's own interval **did** cover the truth and was
+  overruled anyway, carrying **0.55%** of the weight. Calibration is not a way to be right more often
+  than the experiment — it is a way to be as right as the experiment, cheaply, and exactly as wrong.
+- **Skip the unit conversion and the same machinery manufactures a confident wrong answer.** One
+  division left out: four channels resolved instead of three, **one interval of five covering the
+  truth**, every estimate inflated by about the factor that was skipped, and busca-marca — true
+  effect exactly zero — carrying an interval that excludes zero *from below*. Precision and bias
+  transfer with equal efficiency.
+- **A null result was the most precise thing anybody knew about the two channels it "could not
+  resolve".** Used as priors, retargeting and busca-marca keep **7.0% and 9.1%** of their width,
+  both intervals cover the truth of zero, and neither is falsely resolved. The inconclusive result
+  was never an absence; it was an estimate with a standard error eleven to fourteen times tighter
+  than the model's.
+- **And a prior on one channel is not a claim about one channel.** One experiment, on social-pago
+  only: email's reported return moves **1.76×** and retargeting's **2.33×** — while every width
+  beside them moves by less than five per cent. The transfer arrives as a shift in location that
+  nothing on the chart marks.
+- **Then the whole thing rests on the parameter the fit cannot see.** Repeat the transfer at four
+  saturation points spanning **0.000754** of R-squared and the calibrated answer runs **0.64× to
+  1.72×** the truth. The best-fitting point is not the true one: it is k = 3.0, returning 1.42× the
+  truth. A practitioner choosing the saturation point by fit — the only way it can be chosen — lands
+  there.
+
 ## Modules
 
 | Module | What it decides |
@@ -149,6 +192,7 @@ and handed **the generator's own carryover and saturation** — a favour no real
 | [`mktlab.attribution`](src/mktlab/attribution/README.md) | Who gets the credit under six models, what a geo holdout says instead, and the difference between ROAS and its incremental version. |
 | [`mktlab.design`](src/mktlab/design/README.md) | Whether the test is worth running, whether it is being read the way it was sized, and what the plan for reading it should say. Three documents: [sizing](src/mktlab/design/README-sizing.md) — the precision it will have, the smallest **return** it can establish, what it costs if the channel works, and what a null result already ruled out; [repeated looks](src/mktlab/design/README-sequential.md) — what a weekly glance does to the error rate, what the two honest boundaries cost, and by how much an early stop inflates the number you report; and [monitoring](src/mktlab/design/README-monitoring.md) — an alpha-spending schedule for looks nobody agreed in advance, and a futility bound that ends a test going nowhere. |
 | [`mktlab.mmm`](src/mktlab/mmm/README.md) | What a regression of conversions on spend can support when nobody will switch a region off: whether the spend plan permits an answer at all, how much of the answer came from the transforms that were guessed, and how the width compares with the experiment it replaces. |
+| [`mktlab.calibration`](src/mktlab/calibration/README.md) | Whether the experiment already run can make the model usable, what the transfer carries in along with the precision, and what still has to be assumed to move an answer from one instrument to the other. |
 
 Every module README is bilingual and carries an **Assumptions and limitations** section, because a
 figure without its assumptions is not a result.
@@ -162,6 +206,7 @@ figure without its assumptions is not a result.
 | [`examples/03_the_test_read_every_monday.py`](examples/03_the_test_read_every_monday.py) | The same holdout again, read weekly instead of once: the error rate that costs, the two boundaries that fix it, what they cost in regions, and the flattering estimate neither of them fixes. |
 | [`examples/04_the_plan_nobody_wrote.py`](examples/04_the_plan_nobody_wrote.py) | The monitoring plan the holdout should have arrived with: the same error rate spent on four different reading schedules, the futility bound written down week by week, and what the right to give up costs. |
 | [`examples/05_the_model_that_replaces_the_experiment.py`](examples/05_the_model_that_replaces_the_experiment.py) | The model built when the holdout is refused, on the same account and with the generator's own transforms handed to it: what the spend plan already decided, the one channel it resolves, the range that fits equally well, and what the misspecification every real model has does to the signs. |
+| [`examples/06_the_experiment_the_model_believes.py`](examples/06_the_experiment_the_model_believes.py) | The holdout put into the model as a prior: the unit conversion between the two instruments, what a skipped conversion buys, the experiment's own error once the model believes it, and what one prior does to the four channels nobody measured. |
 
 ## Install and run
 
@@ -174,12 +219,13 @@ python examples/02_the_test_nobody_sized.py
 python examples/03_the_test_read_every_monday.py
 python examples/04_the_plan_nobody_wrote.py
 python examples/05_the_model_that_replaces_the_experiment.py
+python examples/06_the_experiment_the_model_believes.py
 ```
 
 ## How the claims are kept honest
 
-**339 tests, 100% statement and branch coverage.** 279 of them run in seconds and gate every push.
-The remaining 60 re-derive, from the generator, every figure quoted in every README on this
+**377 tests, 100% statement and branch coverage.** 306 of them run in seconds and gate every push.
+The remaining 71 re-derive, from the generator, every figure quoted in every README on this
 repository, and run every example script. A change that moves a published number breaks the build
 instead of leaving the text quietly wrong.
 
@@ -202,7 +248,7 @@ Three disciplines, each of which was adopted after it caught something:
    sampler**, so the stream position depends on how many values are asked for and not on which
    library version answers. That rule is enforced against the source, because the first version of
    this repository published figures that held on one machine and moved on a clean install.
-3. **Connecting the modules finds defects that writing more modules does not.** Fifteen of the seventeen
+3. **Connecting the modules finds defects that writing more modules does not.** Nineteen of the twenty-one
    defects recorded so far were found by writing an example, a control case or a sentence — not by
    reading code. The two exceptions were a coverage report showing a branch no test could reach, and
    a clean install that did not reproduce the published figures.
